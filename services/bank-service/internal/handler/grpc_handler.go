@@ -24,6 +24,7 @@ type BankHandler struct {
 	delatnostService domain.DelatnostService
 	accountService   domain.AccountService
 	paymentService   domain.PaymentService
+	kreditService    domain.KreditService
 }
 
 func NewBankHandler(
@@ -31,12 +32,14 @@ func NewBankHandler(
 	delatnostService domain.DelatnostService,
 	accountService domain.AccountService,
 	paymentService domain.PaymentService,
+	kreditService domain.KreditService,
 ) *BankHandler {
 	return &BankHandler{
 		currencyService:  currencyService,
 		delatnostService: delatnostService,
 		accountService:   accountService,
 		paymentService:   paymentService,
+		kreditService:    kreditService,
 	}
 }
 

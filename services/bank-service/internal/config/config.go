@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 // Config holds all runtime configuration for bank-service.
@@ -25,6 +26,13 @@ type Config struct {
 	// JWT
 	JWTAccessSecret string
 
+	// RabbitMQ — opcionalno; ako je prazno, notifikacije se samo loguju.
+	RabbitMQURL string // e.g. "amqp://guest:guest@localhost:5672/"
+
+	// Cron job — InstallmentWorker parametri.
+	WorkerIntervalHours int     // koliko često se worker pokreće (default 24)
+	RetryAfterHours     int     // zakašnjenje pre ponovnog pokušaja (default 72)
+	LatePaymentPenalty  float64 // kazneni % koji se dodaje nominalnoj stopi (default 0.05)
 	// ExchangeRate-API (https://www.exchangerate-api.com)
 	ExchangeRateAPIKey     string // required for live rates; falls back to local rates if empty
 	ExchangeRateAPIBaseURL string // default: https://v6.exchangerate-api.com/v6
@@ -53,6 +61,11 @@ func Load() (*Config, error) {
 
 		JWTAccessSecret: getEnv("JWT_ACCESS_SECRET", "change-me-access-secret"),
 
+		RabbitMQURL: os.Getenv("RABBITMQ_URL"), // prazno = NoOp publisher
+
+		WorkerIntervalHours: getEnvInt("WORKER_INTERVAL_HOURS", 24),
+		RetryAfterHours:     getEnvInt("RETRY_AFTER_HOURS", 72),
+		LatePaymentPenalty:  getEnvFloat("LATE_PAYMENT_PENALTY_PCT", 0.05),
 		ExchangeRateAPIKey:     os.Getenv("EXCHANGE_RATE_API_KEY"),
 		ExchangeRateAPIBaseURL: getEnv("EXCHANGE_RATE_API_BASE_URL", "https://v6.exchangerate-api.com/v6"),
 	}, nil
@@ -69,6 +82,24 @@ func (c *Config) DSN() string {
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
+	}
+	return fallback
+}
+
+func getEnvInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	if v := os.Getenv(key); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
 	}
 	return fallback
 }

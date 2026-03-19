@@ -28,6 +28,7 @@ import (
 	"banka-backend/services/bank-service/internal/repository"
 	"banka-backend/services/bank-service/internal/service"
 	"banka-backend/services/bank-service/internal/transport"
+	"banka-backend/services/bank-service/internal/worker"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
@@ -78,11 +79,33 @@ func main() {
 	paymentRepo := repository.NewPaymentRepository(db)
 	paymentService := service.NewPaymentService(recipientRepo, paymentRepo)
 
+	kreditRepo := repository.NewKreditRepository(db)
+	kreditService := service.NewKreditService(kreditRepo)
+
+	// ── InstallmentWorker (cron job za automatsku naplatu rata) ───────────────
+	var notifPublisher worker.NotificationPublisher
+	if cfg.RabbitMQURL != "" {
+		log.Printf("[main] RabbitMQ konfigurisan — kreditne notifikacije će biti slane")
+		notifPublisher = worker.NewAMQPKreditPublisher(cfg.RabbitMQURL)
+	} else {
+		log.Printf("[main] RABBITMQ_URL nije postavljen — kreditne notifikacije se samo loguju")
+		notifPublisher = &worker.NoOpNotificationPublisher{}
+	}
+
+	installmentWorker := worker.NewInstallmentWorker(
+		kreditRepo,
+		notifPublisher,
+		time.Duration(cfg.WorkerIntervalHours)*time.Hour,
+		time.Duration(cfg.RetryAfterHours)*time.Hour,
+		cfg.LatePaymentPenalty,
+	)
+
+	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService)
 	exchangeProvider := repository.NewExchangeRateProvider(cfg.ExchangeRateAPIKey, cfg.ExchangeRateAPIBaseURL)
 	exchangeTransferRepo := repository.NewExchangeTransferRepository(db)
 	exchangeService := service.NewExchangeService(exchangeProvider, exchangeTransferRepo)
 
-	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService)
+	
 	receiptHandler := handler.NewPaymentReceiptHandler(paymentService, cfg.JWTAccessSecret)
 	exchangeTransferHandler := handler.NewExchangeTransferHandler(paymentService, cfg.JWTAccessSecret)
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeService, cfg.JWTAccessSecret)
@@ -138,14 +161,19 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// ── 7. Start gRPC server ─────────────────────────────────────────────────
+	// ── 7. Start InstallmentWorker (cron job) ────────────────────────────────
+	// Worker koristi isti ctx koji se otkazuje pri SIGINT/SIGTERM,
+	// što garantuje graceful shutdown bez dodatne sinhronizacije.
+	go installmentWorker.Start(ctx)
+
+	// ── 8. Start gRPC server ─────────────────────────────────────────────────
 	go func() {
 		if err := grpcSrv.Serve(); err != nil {
 			log.Fatalf("[grpc] serve error: %v", err)
 		}
 	}()
 
-	// ── 8. Start gRPC-Gateway HTTP server ────────────────────────────────────
+	// ── 9. Start gRPC-Gateway HTTP server ────────────────────────────────────
 	go func() {
 		log.Printf("[gateway] HTTP listening on %s → gRPC %s", cfg.HTTPAddr, grpcLocalTarget)
 		if err := gatewaySrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
