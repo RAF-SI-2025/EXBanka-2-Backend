@@ -33,6 +33,9 @@ type Config struct {
 	WorkerIntervalHours int     // koliko često se worker pokreće (default 24)
 	RetryAfterHours     int     // zakašnjenje pre ponovnog pokušaja (default 72)
 	LatePaymentPenalty  float64 // kazneni % koji se dodaje nominalnoj stopi (default 0.05)
+	// ExchangeRate-API (https://www.exchangerate-api.com)
+	ExchangeRateAPIKey     string // required for live rates; falls back to local rates if empty
+	ExchangeRateAPIBaseURL string // default: https://v6.exchangerate-api.com/v6
 }
 
 // Load reads ENV vars and returns a populated Config.
@@ -63,6 +66,8 @@ func Load() (*Config, error) {
 		WorkerIntervalHours: getEnvInt("WORKER_INTERVAL_HOURS", 24),
 		RetryAfterHours:     getEnvInt("RETRY_AFTER_HOURS", 72),
 		LatePaymentPenalty:  getEnvFloat("LATE_PAYMENT_PENALTY_PCT", 0.05),
+		ExchangeRateAPIKey:     os.Getenv("EXCHANGE_RATE_API_KEY"),
+		ExchangeRateAPIBaseURL: getEnv("EXCHANGE_RATE_API_BASE_URL", "https://v6.exchangerate-api.com/v6"),
 	}, nil
 }
 
