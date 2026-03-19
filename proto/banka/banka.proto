@@ -297,6 +297,139 @@ message GetPaymentDetailRequest {
   int64 id = 1;
 }
 
+// ─── Krediti (Loans) ──────────────────────────────────────────────────────────
+
+// Credit (Kredit) — pun zapis o kreditu klijenta.
+message Credit {
+  int64  id                      = 1;
+  string broj_kredita            = 2;  // jedinstveni identifikator kredita
+  string broj_racuna             = 3;  // FK na račun klijenta
+  string vrsta_kredita           = 4;  // GOTOVINSKI | STAMBENI | AUTO | REFINANSIRAJUCI | STUDENTSKI
+  string iznos_kredita           = 5;  // decimal kao string (precision-safe)
+  int32  period_otplate          = 6;  // u mesecima
+  string nominalna_kamatna_stopa = 7;  // nominal interest rate kao string
+  string efektivna_kamatna_stopa = 8;  // effective interest rate kao string
+  string datum_ugovaranja        = 9;  // ISO 8601 date
+  string datum_isplate           = 10; // ISO 8601 date — datum kada je novac uplaćen
+  string iznos_mesecne_rate      = 11; // decimal kao string
+  string datum_sledece_rate      = 12; // ISO 8601 date
+  string preostalo_dugovanje     = 13; // decimal kao string
+  string valuta                  = 14; // ISO 4217 kod, e.g. "RSD", "EUR"
+  string status                  = 15; // ODOBREN | ODBIJEN | OTPLACEN | U_KASNJENJU
+  string tip_kamate              = 16; // FIKSNI | VARIJABILNI
+}
+
+// Installment (Rata) — jedan zapis o rati kredita.
+message Installment {
+  int64  id                      = 1;
+  int64  kredit_id               = 2;  // FK na Credit
+  string iznos_rate              = 3;  // decimal kao string
+  string iznos_kamatne_stope     = 4;  // kamata u ovoj rati, decimal kao string
+  string valuta                  = 5;
+  string ocekivani_datum_dospeca = 6;  // ISO 8601 date
+  string pravi_datum_dospeca     = 7;  // ISO 8601 date; prazan dok novac nije skinut
+  string status_placanja         = 8;  // PLACENO | NEPLACENO | KASNI
+}
+
+// CreditRequest — zahtev klijenta za kredit koji ceka obradu zaposlenog.
+message CreditRequest {
+  int64  id                  = 1;
+  int64  klijent_id          = 2;
+  string vrsta_kredita       = 3;
+  string tip_kamate          = 4;
+  string iznos_kredita       = 5;  // decimal kao string
+  string valuta              = 6;
+  string svrha_kredita       = 7;
+  string iznos_mesecne_plate = 8;  // decimal kao string
+  string status_zaposlenja   = 9;  // STALNO | PRIVREMENO | NEZAPOSLEN
+  int32  period_zaposlenja   = 10; // u mesecima
+  string kontakt_telefon     = 11;
+  string broj_racuna         = 12; // racun na koji se uplacuje i sa kojeg se skida rata
+  int32  rok_otplate         = 13; // u mesecima
+  string datum_podnosenja    = 14; // ISO 8601 datetime
+  string status              = 15; // NA_CEKANJU | ODOBREN | ODBIJEN
+}
+
+// ─── ApplyForCredit ───────────────────────────────────────────────────────────
+
+message ApplyForCreditRequest {
+  string vrsta_kredita       = 1;
+  string tip_kamate          = 2;
+  string iznos_kredita       = 3;
+  string valuta              = 4;
+  string svrha_kredita       = 5;
+  string iznos_mesecne_plate = 6;
+  string status_zaposlenja   = 7;
+  int32  period_zaposlenja   = 8;
+  string kontakt_telefon     = 9;
+  string broj_racuna         = 10;
+  int32  rok_otplate         = 11;
+}
+
+message ApplyForCreditResponse {
+  int64  id               = 1;
+  string status           = 2;
+  string datum_podnosenja = 3;
+}
+
+// ─── GetClientCredits ─────────────────────────────────────────────────────────
+// Request: google.protobuf.Empty — klijent se identifikuje kroz JWT.
+
+message GetClientCreditsResponse {
+  repeated Credit credits = 1;
+}
+
+// ─── GetCreditDetails ─────────────────────────────────────────────────────────
+
+message GetCreditDetailsRequest {
+  int64 id = 1;
+}
+
+message GetCreditDetailsResponse {
+  Credit               kredit = 1;
+  repeated Installment rate   = 2;
+}
+
+// ─── ApproveCredit ────────────────────────────────────────────────────────────
+
+message ApproveCreditRequest {
+  int64 id = 1; // ID zahteva za kredit (CreditRequest)
+}
+
+message ApproveCreditResponse {
+  Credit kredit = 1;
+}
+
+// ─── RejectCredit ─────────────────────────────────────────────────────────────
+// Response: google.protobuf.Empty
+
+message RejectCreditRequest {
+  int64 id = 1; // ID zahteva za kredit (CreditRequest)
+}
+
+// ─── GetAllCreditRequests (Employee) ──────────────────────────────────────────
+
+message GetAllCreditRequestsRequest {
+  string vrsta_kredita = 1; // opcioni filter; "" = sve vrste
+  string broj_racuna   = 2; // opcioni filter; "" = svi racuni
+}
+
+message GetAllCreditRequestsResponse {
+  repeated CreditRequest zahtevi = 1;
+}
+
+// ─── GetAllApprovedCredits (Employee) ─────────────────────────────────────────
+
+message GetAllApprovedCreditsRequest {
+  string vrsta_kredita = 1; // opcioni filter
+  string broj_racuna   = 2; // opcioni filter
+  string status        = 3; // opcioni filter; "" = svi statusi
+}
+
+message GetAllApprovedCreditsResponse {
+  repeated Credit krediti = 1;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 service BankaService {
@@ -463,6 +596,62 @@ service BankaService {
   rpc GetPaymentDetail(GetPaymentDetailRequest) returns (PaymentIntentItem) {
     option (google.api.http) = {
       get: "/bank/client/payments/{id}"
+    };
+  }
+
+  // ── Krediti (Loans) — Client ──────────────────────────────────────────────
+
+  // ApplyForCredit — Client only. Podnosi zahtev za novi kredit.
+  rpc ApplyForCredit(ApplyForCreditRequest) returns (ApplyForCreditResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/client/credits"
+      body: "*"
+    };
+  }
+
+  // GetClientCredits — Client only. Vraća sve kredite prijavljenog klijenta, sortirano opadajuće po iznosu.
+  rpc GetClientCredits(google.protobuf.Empty) returns (GetClientCreditsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/client/credits"
+    };
+  }
+
+  // GetCreditDetails — Client only. Vraća detalje i rate za jedan kredit.
+  rpc GetCreditDetails(GetCreditDetailsRequest) returns (GetCreditDetailsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/client/credits/{id}"
+    };
+  }
+
+  // ── Krediti (Loans) — Employee ────────────────────────────────────────────
+
+  // GetAllCreditRequests — Employee only. Vraća sve zahteve za kredit sa opcionim filterima.
+  rpc GetAllCreditRequests(GetAllCreditRequestsRequest) returns (GetAllCreditRequestsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/employee/credits/requests"
+    };
+  }
+
+  // ApproveCredit — Employee only. Odobrava zahtev za kredit i uplaćuje iznos na račun klijenta.
+  rpc ApproveCredit(ApproveCreditRequest) returns (ApproveCreditResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/employee/credits/requests/{id}/approve"
+      body: "*"
+    };
+  }
+
+  // RejectCredit — Employee only. Odbija zahtev za kredit.
+  rpc RejectCredit(RejectCreditRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/employee/credits/requests/{id}/reject"
+      body: "*"
+    };
+  }
+
+  // GetAllApprovedCredits — Employee only. Vraća sve odobrene kredite sa opcionim filterima, sortirano po broju računa.
+  rpc GetAllApprovedCredits(GetAllApprovedCreditsRequest) returns (GetAllApprovedCreditsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/employee/credits"
     };
   }
 }

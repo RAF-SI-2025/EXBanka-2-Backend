@@ -65,3 +65,19 @@ packages:
       mockname: "MockSMTPSender"
     interfaces:
       Sender:
+
+  # ── bank-service ─────────────────────────────────────────────────────────────
+
+  banka-backend/services/bank-service/internal/domain:
+    config:
+      dir: "services/bank-service/mocks"
+      outpkg: mocks
+    interfaces:
+      KreditRepository:
+        config:
+          filename: "mock_kredit_repository.go"
+          mockname: "MockKreditRepository"
+      KreditService:
+        config:
+          filename: "mock_kredit_service.go"
+          mockname: "MockKreditService"
