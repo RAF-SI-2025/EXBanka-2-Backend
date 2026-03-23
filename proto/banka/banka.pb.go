@@ -346,6 +346,7 @@ type CreateAccountRequest struct {
 	Naziv            string                 `protobuf:"bytes,8,opt,name=naziv,proto3" json:"naziv,omitempty"`
 	Stanje           float64                `protobuf:"fixed64,9,opt,name=stanje,proto3" json:"stanje,omitempty"` // početno stanje računa
 	KreirajKarticu   bool                   `protobuf:"varint,10,opt,name=kreiraj_karticu,json=kreirajKarticu,proto3" json:"kreiraj_karticu,omitempty"`
+	TipKartice       string                 `protobuf:"bytes,11,opt,name=tip_kartice,json=tipKartice,proto3" json:"tip_kartice,omitempty"` // "VISA" | "MASTERCARD" | "DINACARD" | "AMEX"; default VISA
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -448,6 +449,13 @@ func (x *CreateAccountRequest) GetKreirajKarticu() bool {
 		return x.KreirajKarticu
 	}
 	return false
+}
+
+func (x *CreateAccountRequest) GetTipKartice() string {
+	if x != nil {
+		return x.TipKartice
+	}
+	return ""
 }
 
 type CreateAccountResponse struct {
@@ -3619,7 +3627,7 @@ const file_proto_banka_banka_proto_rawDesc = "" +
 	"\fdelatnost_id\x18\x04 \x01(\x03R\vdelatnostId\x12\x16\n" +
 	"\x06adresa\x18\x05 \x01(\tR\x06adresa\x12\x1d\n" +
 	"\n" +
-	"vlasnik_id\x18\x06 \x01(\x03R\tvlasnikId\"\xee\x02\n" +
+	"vlasnik_id\x18\x06 \x01(\x03R\tvlasnikId\"\x8f\x03\n" +
 	"\x14CreateAccountRequest\x12!\n" +
 	"\fzaposleni_id\x18\x01 \x01(\x03R\vzaposleniId\x12\x1d\n" +
 	"\n" +
@@ -3632,7 +3640,9 @@ const file_proto_banka_banka_proto_rawDesc = "" +
 	"\x05naziv\x18\b \x01(\tR\x05naziv\x12\x16\n" +
 	"\x06stanje\x18\t \x01(\x01R\x06stanje\x12'\n" +
 	"\x0fkreiraj_karticu\x18\n" +
-	" \x01(\bR\x0ekreirajKarticuB\b\n" +
+	" \x01(\bR\x0ekreirajKarticu\x12\x1f\n" +
+	"\vtip_kartice\x18\v \x01(\tR\n" +
+	"tipKarticeB\b\n" +
 	"\x06_firma\"'\n" +
 	"\x15CreateAccountResponse\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\"\xe1\x02\n" +

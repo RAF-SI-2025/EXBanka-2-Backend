@@ -9,7 +9,6 @@ import (
 
 	"banka-backend/services/notification-service/internal/config"
 	"banka-backend/services/notification-service/internal/domain"
-	"banka-backend/services/notification-service/internal/service"
 )
 
 const emailQueue = "email_notifications"
@@ -17,7 +16,10 @@ const emailQueue = "email_notifications"
 // StartConsumer dials RabbitMQ, declares the queue, and begins consuming
 // EmailEvent messages. It is designed to be called as a goroutine from main.
 // It blocks until the connection is closed.
-func StartConsumer(cfg *config.Config, emailSvc *service.EmailService) {
+//
+// emailSvc is the domain.NotificationService interface so this layer is not
+// coupled to the concrete *service.EmailService implementation.
+func StartConsumer(cfg *config.Config, emailSvc domain.NotificationService) {
 	conn, err := amqp.Dial(cfg.RabbitMQURL)
 	if err != nil {
 		log.Fatalf("[rabbitmq] failed to connect: %v", err)
@@ -61,17 +63,22 @@ func StartConsumer(cfg *config.Config, emailSvc *service.EmailService) {
 		for msg := range msgs {
 			var event domain.EmailEvent
 			if err := json.Unmarshal(msg.Body, &event); err != nil {
-				log.Printf("[rabbitmq] failed to unmarshal message: %v", err)
-				msg.Ack(false) // discard malformed message so it doesn't block the queue
+				log.Printf("[rabbitmq] failed to unmarshal message: %v — discarding", err)
+				// Malformed JSON can never be fixed by requeuing — discard it.
+				msg.Ack(false)
 				continue
 			}
 
 			if err := emailSvc.SendEmail(event); err != nil {
-				log.Printf("[rabbitmq] failed to send email to %s (type=%s): %v", event.Email, event.Type, err)
-			} else {
-				log.Printf("[rabbitmq] email sent to %s (type=%s)", event.Email, event.Type)
+				log.Printf("[rabbitmq] failed to send email to %s (type=%s): %v — requeueing", event.Email, event.Type, err)
+				// Nack with requeue=true so the message is not lost on transient
+				// SMTP failures (e.g. temporary connection error). If SMTP is
+				// permanently unavailable the message will cycle until it recovers.
+				msg.Nack(false, true)
+				continue
 			}
 
+			log.Printf("[rabbitmq] email sent to %s (type=%s)", event.Email, event.Type)
 			msg.Ack(false)
 		}
 	}()

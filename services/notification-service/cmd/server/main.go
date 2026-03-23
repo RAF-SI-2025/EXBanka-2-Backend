@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -26,8 +27,17 @@ func main() {
 	}
 	cfg := config.LoadConfig()
 
-	emailSvc := service.NewEmailService(cfg, smtp.NewRealSender(cfg))
+	smtpSender := smtp.NewRealSender(cfg)
+	emailSvc := service.NewEmailService(cfg, smtpSender)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// gRPC server — prima sinhronizovane zahteve od bank-service (OTP emailovi).
+	grpcAddr := getEnv("GRPC_ADDR", "0.0.0.0:50053")
+	go transport.StartGRPCServer(ctx, grpcAddr, emailSvc)
+
+	// RabbitMQ consumer — prima asinhroni eventi (ACTIVATION, ACCOUNT_CREATED, CARD_OTP itd.)
 	go transport.StartConsumer(cfg, emailSvc)
 
 	quit := make(chan os.Signal, 1)
@@ -35,4 +45,11 @@ func main() {
 	<-quit
 
 	log.Println("[main] shutdown signal received, exiting")
+}
+
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

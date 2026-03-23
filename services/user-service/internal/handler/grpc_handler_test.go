@@ -616,7 +616,7 @@ func TestActivateAccount(t *testing.T) {
 					Return(sqlc.User{ID: 1, Email: "activate@test.com", PasswordHash: ""}, nil)
 				q.On("UpdateUserPassword", context.Background(),
 					matchUpdatePasswordEmail("activate@test.com")).Return(nil)
-				pub.On("Publish", utils.EmailEvent{Type: "CONFIRMATION", Email: "activate@test.com", Token: ""}).
+				pub.On("Publish", utils.EmailEvent{Type: "ACTIVATION_SUCCESS", Email: "activate@test.com", Token: ""}).
 					Return(nil)
 			},
 			wantCode: codes.OK,
@@ -734,7 +734,7 @@ func TestResetPassword(t *testing.T) {
 			setup: func(q *mocks.MockQuerier, pub *mocks.MockEmailPublisher) {
 				q.On("UpdateUserPassword", context.Background(),
 					matchUpdatePasswordEmail("reset@test.com")).Return(nil)
-				pub.On("Publish", utils.EmailEvent{Type: "CONFIRMATION", Email: "reset@test.com", Token: ""}).
+				pub.On("Publish", utils.EmailEvent{Type: "PASSWORD_RESET_SUCCESS", Email: "reset@test.com", Token: ""}).
 					Return(nil)
 			},
 			wantCode: codes.OK,

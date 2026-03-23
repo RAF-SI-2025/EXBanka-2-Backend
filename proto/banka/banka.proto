@@ -58,6 +58,7 @@ message CreateAccountRequest {
   string          naziv             = 8;
   double          stanje            = 9; // početno stanje računa
   bool            kreiraj_karticu   = 10;
+  string          tip_kartice       = 11; // "VISA" | "MASTERCARD" | "DINACARD" | "AMEX"; default VISA
 }
 
 message CreateAccountResponse {

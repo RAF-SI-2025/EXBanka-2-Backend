@@ -33,7 +33,7 @@ func TestSendEmail(t *testing.T) {
 			name:  "ACTIVATION success",
 			event: domain.EmailEvent{Type: "ACTIVATION", Email: "user@test.com", Token: "act-token-123"},
 			setup: func(s *mocks.MockSMTPSender) {
-				s.On("Send", "user@test.com", "Activate Your EXBanka Account",
+				s.On("Send", "user@test.com", "Activate Your EXBanka2 Account",
 					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "act-token-123") })).Return(nil)
 			},
 			wantErr: false,
@@ -48,11 +48,29 @@ func TestSendEmail(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:  "CONFIRMATION success (no token needed)",
-			event: domain.EmailEvent{Type: "CONFIRMATION", Email: "user@test.com", Token: ""},
+			name:  "ACTIVATION_SUCCESS (no token needed)",
+			event: domain.EmailEvent{Type: "ACTIVATION_SUCCESS", Email: "user@test.com", Token: ""},
 			setup: func(s *mocks.MockSMTPSender) {
-				s.On("Send", "user@test.com", "Password Changed Successfully",
-					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "password has been successfully updated") })).Return(nil)
+				s.On("Send", "user@test.com", "Welcome to EXBanka2 \u2013 Your Account is Now Active",
+					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "successfully activated") })).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:  "PASSWORD_RESET_SUCCESS (no token needed)",
+			event: domain.EmailEvent{Type: "PASSWORD_RESET_SUCCESS", Email: "user@test.com", Token: ""},
+			setup: func(s *mocks.MockSMTPSender) {
+				s.On("Send", "user@test.com", "Security Alert: Your EXBanka2 Password Has Been Changed",
+					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "successfully changed") })).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:  "ACCOUNT_CREATED (no token needed)",
+			event: domain.EmailEvent{Type: "ACCOUNT_CREATED", Email: "user@test.com", Token: ""},
+			setup: func(s *mocks.MockSMTPSender) {
+				s.On("Send", "user@test.com", "Your EXBanka2 Account Has Been Created",
+					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "successfully opened") })).Return(nil)
 			},
 			wantErr: false,
 		},
@@ -74,7 +92,7 @@ func TestSendEmail(t *testing.T) {
 			name:  "SMTP sender error is propagated",
 			event: domain.EmailEvent{Type: "ACTIVATION", Email: "user@test.com", Token: "tok"},
 			setup: func(s *mocks.MockSMTPSender) {
-				s.On("Send", "user@test.com", "Activate Your EXBanka Account",
+				s.On("Send", "user@test.com", "Activate Your EXBanka2 Account",
 					mock.MatchedBy(func(body string) bool { return strings.Contains(body, "tok") })).Return(errors.New("smtp connection refused"))
 			},
 			wantErr:   true,
@@ -111,7 +129,7 @@ func TestSendEmail_ActivationLinkContainsFrontendURL(t *testing.T) {
 	var capturedBody string
 	sender.On("Send",
 		"user@test.com",
-		"Activate Your EXBanka Account",
+		"Activate Your EXBanka2 Account",
 		mock.MatchedBy(func(body string) bool {
 			capturedBody = body
 			return true
