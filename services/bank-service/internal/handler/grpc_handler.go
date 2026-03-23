@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -11,11 +12,23 @@ import (
 	pb "banka-backend/proto/banka"
 	auth "banka-backend/shared/auth"
 	"banka-backend/services/bank-service/internal/domain"
+	"banka-backend/services/bank-service/internal/worker"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
+
+// clientEmailLookup apstrahuje gRPC poziv ka user-service radi dohvata emaila.
+// Omogućava testabilnost BankHandler-a bez pravog gRPC klijenta.
+type clientEmailLookup interface {
+	// GetClientEmail dohvata email klijenta po ID-u — zahteva EMPLOYEE JWT.
+	// Koristiti samo u gRPC handler-ima (BankHandler) koji imaju EMPLOYEE context.
+	GetClientEmail(ctx context.Context, clientID int64) (string, error)
+	// GetMyEmail dohvata email ulogovanog korisnika — radi sa bilo kojim JWT.
+	// Koristiti u direktnim HTTP handler-ima gde je token CLIENT-ov.
+	GetMyEmail(ctx context.Context) (string, error)
+}
 
 // BankHandler implementira pb.BankaServiceServer.
 type BankHandler struct {
@@ -25,6 +38,9 @@ type BankHandler struct {
 	accountService   domain.AccountService
 	paymentService   domain.PaymentService
 	kreditService    domain.KreditService
+	karticaService   domain.KarticaService
+	userClient       clientEmailLookup
+	accountPublisher worker.AccountEmailPublisher
 }
 
 func NewBankHandler(
@@ -33,6 +49,9 @@ func NewBankHandler(
 	accountService domain.AccountService,
 	paymentService domain.PaymentService,
 	kreditService domain.KreditService,
+	karticaService domain.KarticaService,
+	userClient clientEmailLookup,
+	accountPublisher worker.AccountEmailPublisher,
 ) *BankHandler {
 	return &BankHandler{
 		currencyService:  currencyService,
@@ -40,6 +59,9 @@ func NewBankHandler(
 		accountService:   accountService,
 		paymentService:   paymentService,
 		kreditService:    kreditService,
+		karticaService:   karticaService,
+		userClient:       userClient,
+		accountPublisher: accountPublisher,
 	}
 }
 
@@ -88,12 +110,40 @@ func (h *BankHandler) GetDelatnosti(ctx context.Context, _ *emptypb.Empty) (*pb.
 // CreateAccount kreira novi bankovni račun.
 // Zahteva ulogu EMPLOYEE u JWT tokenu.
 // Mapped to: POST /bank/accounts
+//
+// Tok izvršavanja:
+//  1. Sinhroni gRPC poziv ka user-service: validacija klijenta + dohvat emaila (timeout 3s).
+//  2. Kreiranje računa u bazi (postojeća logika).
+//  3. Asinhrono slanje ACCOUNT_CREATED notifikacije na RabbitMQ (fire-and-forget).
 func (h *BankHandler) CreateAccount(ctx context.Context, req *pb.CreateAccountRequest) (*pb.CreateAccountResponse, error) {
 	claims, ok := auth.ClaimsFromContext(ctx)
 	if !ok || claims.UserType != "EMPLOYEE" {
 		return nil, status.Error(codes.PermissionDenied, "samo zaposleni mogu kreirati račune")
 	}
 
+	// ── Korak 1: Validacija klijenta i dohvat emaila via gRPC ────────────────
+	// Timeout od 3s: ako user-service ne odgovori, prekidamo kreiranje računa.
+	lookupCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	email, err := h.userClient.GetClientEmail(lookupCtx, req.VlasnikId)
+	if err != nil {
+		st, _ := status.FromError(err)
+		switch st.Code() {
+		case codes.NotFound:
+			return nil, status.Errorf(codes.NotFound, "klijent sa ID %d ne postoji", req.VlasnikId)
+		case codes.DeadlineExceeded, codes.Unavailable:
+			return nil, status.Error(codes.Unavailable, "user-service nije dostupan, pokušajte ponovo")
+		default:
+			return nil, status.Errorf(codes.Unavailable, "greška pri komunikaciji sa user-service: %v", err)
+		}
+	}
+
+	if email == "" {
+		log.Printf("[create-account] upozorenje: klijent ID=%d nema email — notifikacija neće biti poslata", req.VlasnikId)
+	}
+
+	// ── Korak 2: Kreiranje računa (postojeća logika) ─────────────────────────
 	input := domain.CreateAccountInput{
 		ZaposleniID:      req.ZaposleniId,
 		VlasnikID:        req.VlasnikId,
@@ -122,6 +172,44 @@ func (h *BankHandler) CreateAccount(ctx context.Context, req *pb.CreateAccountRe
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
 			return nil, status.Errorf(codes.Internal, "greška pri kreiranju računa: %v", err)
+		}
+	}
+
+	// ── Korak 2b: Flow 1 — automatsko kreiranje kartice uz račun ─────────────
+	// Ako zaposleni označi "Napravi karticu", kreira se DEBIT kartica odabranog
+	// tipa za vlasnika računa (bez ovlasceno_lice).
+	// DinaCard+non-RSD: vraća grešku klijentu (frontend treba da onemogući opciju).
+	// Ostale greške se loguju — račun je finansijski validan i ostaje kreiran.
+	if req.KreirajKarticu {
+		tipKartice := req.TipKartice
+		if tipKartice == "" {
+			tipKartice = domain.TipKarticaVisa // default za stare klijente
+		}
+		if _, karticaErr := h.karticaService.CreateKarticaZaVlasnika(ctx, id, tipKartice); karticaErr != nil {
+			switch {
+			case errors.Is(karticaErr, domain.ErrDinaCardSamoRSD),
+				errors.Is(karticaErr, domain.ErrNepoznatTipKartice):
+				// Ovo ne sme da se desi ako frontend validira — ali backend mora da brani.
+				return nil, status.Error(codes.InvalidArgument, karticaErr.Error())
+			case errors.Is(karticaErr, domain.ErrKarticaLimitPremasen):
+				log.Printf("[create-account] UPOZORENJE: račun kreiran (id=%d) ali kartica nije kreirana — limit premašen: %v", id, karticaErr)
+			default:
+				log.Printf("[create-account] UPOZORENJE: račun kreiran (id=%d) ali kreiranje kartice nije uspelo: %v", id, karticaErr)
+			}
+		}
+	}
+
+	// ── Korak 3: Asinhrono slanje notifikacije (RabbitMQ) ────────────────────
+	// Fire-and-forget: račun je finansijski validan čak i ako publish ne uspe.
+	// Greška se samo loguje — frontend dobija 200/201 bez obzira.
+	if email != "" {
+		if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+			Type:  "ACCOUNT_CREATED",
+			Email: email,
+			Token: "",
+		}); pubErr != nil {
+			log.Printf("[create-account] UPOZORENJE: račun kreiran (id=%d) ali email nije poslat klijentu ID=%d: %v",
+				id, req.VlasnikId, pubErr)
 		}
 	}
 

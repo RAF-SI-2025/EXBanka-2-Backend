@@ -24,6 +24,7 @@ import (
 	pb "banka-backend/proto/banka"
 	auth "banka-backend/shared/auth"
 	"banka-backend/services/bank-service/internal/config"
+	"banka-backend/services/bank-service/internal/domain"
 	"banka-backend/services/bank-service/internal/handler"
 	"banka-backend/services/bank-service/internal/repository"
 	"banka-backend/services/bank-service/internal/service"
@@ -82,6 +83,38 @@ func main() {
 	kreditRepo := repository.NewKreditRepository(db)
 	kreditService := service.NewKreditService(kreditRepo)
 
+	karticaRepo := repository.NewKarticaRepository(db)
+
+	// ── Redis store za OTP state (Flow 2) ────────────────────────────────────
+	var redisStore domain.CardRequestStore
+	if cfg.RedisURL != "" {
+		rs, err := transport.NewRedisCardRequestStore(cfg.RedisURL)
+		if err != nil {
+			log.Fatalf("[main] Redis konekcija: %v", err)
+		}
+		redisStore = rs
+	} else {
+		log.Printf("[main] REDIS_URL nije postavljen — /api/cards/request neće biti funkcionalan")
+		redisStore = &transport.NoOpCardRequestStore{}
+	}
+
+	// ── Notification-service gRPC klijent (sinhronizovano slanje OTP emaila) ─
+	var notifClient domain.NotificationSender
+	if cfg.NotificationServiceAddr != "" {
+		nc, err := transport.NewNotificationServiceClient(cfg.NotificationServiceAddr)
+		if err != nil {
+			log.Fatalf("[main] notification-service gRPC klijent: %v", err)
+		}
+		defer nc.Close()
+		notifClient = nc
+		log.Printf("[main] notification-service gRPC klijent konfigurisan na %s", cfg.NotificationServiceAddr)
+	} else {
+		log.Printf("[main] NOTIFICATION_SERVICE_ADDR nije postavljen — OTP emailovi neće biti slani")
+		notifClient = &transport.NoOpNotificationSender{}
+	}
+
+	karticaService := service.NewKarticaService(karticaRepo, cfg.CVVPepper, redisStore, notifClient)
+
 	// ── InstallmentWorker (cron job za automatsku naplatu rata) ───────────────
 	var notifPublisher worker.NotificationPublisher
 	if cfg.RabbitMQURL != "" {
@@ -100,7 +133,23 @@ func main() {
 		cfg.LatePaymentPenalty,
 	)
 
-	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService)
+	// ── User-service gRPC klijent (za validaciju klijenta pri kreiranju računa) ─
+	userClient, err := transport.NewUserServiceClient(cfg.UserServiceAddr)
+	if err != nil {
+		log.Fatalf("[main] user-service gRPC client: %v", err)
+	}
+	defer userClient.Close()
+	log.Printf("[main] user-service gRPC klijent konfigurisan na %s", cfg.UserServiceAddr)
+
+	// ── Account email publisher ───────────────────────────────────────────────
+	var accountPublisher worker.AccountEmailPublisher
+	if cfg.RabbitMQURL != "" {
+		accountPublisher = worker.NewAMQPAccountPublisher(cfg.RabbitMQURL)
+	} else {
+		accountPublisher = &worker.NoOpAccountEmailPublisher{}
+	}
+
+	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService, karticaService, userClient, accountPublisher)
 	exchangeProvider := repository.NewExchangeRateProvider(cfg.ExchangeRateAPIKey, cfg.ExchangeRateAPIBaseURL)
 	exchangeTransferRepo := repository.NewExchangeTransferRepository(db)
 	exchangeService := service.NewExchangeService(exchangeProvider, exchangeTransferRepo)
@@ -109,6 +158,8 @@ func main() {
 	receiptHandler := handler.NewPaymentReceiptHandler(paymentService, cfg.JWTAccessSecret)
 	exchangeTransferHandler := handler.NewExchangeTransferHandler(paymentService, cfg.JWTAccessSecret)
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeService, cfg.JWTAccessSecret)
+	karticaRequestHandler := handler.NewKarticaRequestHandler(karticaService, userClient, cfg.JWTAccessSecret)
+	klientKarticeHandler := handler.NewKlientKarticeHandler(karticaService, cfg.JWTAccessSecret)
 
 	// ── 4. Auth interceptor ──────────────────────────────────────────────────
 	// Sve rute zahtevaju validan JWT access token osim gRPC health check-a.
@@ -151,6 +202,10 @@ func main() {
 	httpMux.Handle("/bank/client/exchange-transfers", exchangeTransferHandler) // POST /bank/client/exchange-transfers
 	httpMux.Handle("/bank/exchange-rates", exchangeRateHandler)                // GET /bank/exchange-rates[?from=X&to=Y&amount=Z]
 	httpMux.Handle("/bank/exchange-rates/execute", exchangeRateHandler)        // POST /bank/exchange-rates/execute
+	httpMux.Handle("POST /bank/cards/request", karticaRequestHandler)           // POST /bank/cards/request (Flow 2 Korak 1)
+	httpMux.Handle("POST /bank/cards/confirm", karticaRequestHandler)           // POST /bank/cards/confirm (Flow 2 Korak 2)
+	httpMux.Handle("GET /bank/cards/my", klientKarticeHandler)                  // GET  /bank/cards/my (klijentske kartice)
+	httpMux.Handle("PATCH /bank/cards/{id}/block", klientKarticeHandler)        // PATCH /bank/cards/{id}/block (blokiranje)
 	httpMux.Handle("/", gwMux)                                                 // sve ostalo → gRPC-Gateway
 
 	gatewaySrv := &http.Server{

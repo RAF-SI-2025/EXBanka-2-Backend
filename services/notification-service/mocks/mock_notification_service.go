@@ -13,17 +13,17 @@ type MockNotificationService struct {
 	mock.Mock
 }
 
-// SendEmail provides a mock function with given fields: n
-func (_m *MockNotificationService) SendEmail(n *domain.Notification) error {
-	ret := _m.Called(n)
+// SendEmail provides a mock function with given fields: event
+func (_m *MockNotificationService) SendEmail(event domain.EmailEvent) error {
+	ret := _m.Called(event)
 
 	if len(ret) == 0 {
 		panic("no return value specified for SendEmail")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*domain.Notification) error); ok {
-		r0 = rf(n)
+	if rf, ok := ret.Get(0).(func(domain.EmailEvent) error); ok {
+		r0 = rf(event)
 	} else {
 		r0 = ret.Error(0)
 	}

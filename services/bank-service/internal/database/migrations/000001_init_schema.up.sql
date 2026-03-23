@@ -85,16 +85,3 @@ CREATE INDEX idx_racun_id_vlasnika  ON core_banking.racun (id_vlasnika);
 CREATE INDEX idx_racun_id_firme     ON core_banking.racun (id_firme);
 CREATE INDEX idx_racun_id_valute    ON core_banking.racun (id_valute);
 
--- ─── Seed data ────────────────────────────────────────────────────────────────
-
-INSERT INTO core_banking.valuta (naziv, oznaka, simbol, zemlja, status) VALUES
-    ('Srpski dinar',    'RSD', 'din.', 'Srbija',           true),
-    ('Evro',            'EUR', '€',    'Evropska Unija',   true),
-    ('Američki dolar',  'USD', '$',    'SAD',              true)
-ON CONFLICT (oznaka) DO NOTHING;
-
-INSERT INTO core_banking.delatnost (sifra, naziv, grana, sektor) VALUES
-    ('1.1', 'Centralno bankarstvo',                                'Finansijske usluge',      'Sektor K'),
-    ('2.1', 'Računarsko programiranje',                            'Informacione tehnologije', 'Sektor J'),
-    ('3.1', 'Trgovina na malo u nespecijalizovanim prodavnicama',  'Trgovina',                'Sektor G')
-ON CONFLICT (sifra) DO NOTHING;

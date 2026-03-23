@@ -541,7 +541,7 @@ func (h *UserHandler) ActivateAccount(ctx context.Context, req *pb.ActivateAccou
 	// Fire-and-forget: password is already committed, messaging failure must not
 	// surface as a gRPC error — the account is activated regardless.
 	if err := h.publisher.Publish(utils.EmailEvent{
-		Type:  "CONFIRMATION",
+		Type:  "ACTIVATION_SUCCESS",
 		Email: email,
 		Token: "",
 	}); err != nil {
@@ -1358,7 +1358,7 @@ func (h *UserHandler) ResetPassword(ctx context.Context, req *pb.ResetPasswordRe
 	// Fire-and-forget: the password is already committed, so a messaging failure
 	// must not surface as a gRPC error to the caller.
 	if err := h.publisher.Publish(utils.EmailEvent{
-		Type:  "CONFIRMATION",
+		Type:  "PASSWORD_RESET_SUCCESS",
 		Email: email,
 		Token: "",
 	}); err != nil {

@@ -900,7 +900,7 @@
     },
     "/bank/transactions/pending": {
       "get": {
-        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
+        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\r\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\r\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
         "operationId": "BankaService_GetPendingActions",
         "responses": {
           "200": {
@@ -1288,6 +1288,10 @@
         },
         "kreirajKarticu": {
           "type": "boolean"
+        },
+        "tipKartice": {
+          "type": "string",
+          "title": "\"VISA\" | \"MASTERCARD\" | \"DINACARD\" | \"AMEX\"; default VISA"
         }
       }
     },
@@ -1912,7 +1916,7 @@
           "title": "\"PENDING\""
         }
       },
-      "description": "PendingActionItem — projekcija za mobilni prikaz.\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
+      "description": "PendingActionItem — projekcija za mobilni prikaz.\r\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
     },
     "v1Transakcija": {
       "type": "object",

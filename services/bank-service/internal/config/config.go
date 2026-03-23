@@ -14,7 +14,8 @@ type Config struct {
 	HTTPAddr string // e.g. "0.0.0.0:8082"
 
 	// gRPC
-	GRPCAddr string // e.g. "0.0.0.0:50052"
+	GRPCAddr        string // e.g. "0.0.0.0:50052"
+	UserServiceAddr string // e.g. "user-service:50051"
 
 	// PostgreSQL
 	DBHost     string
@@ -36,6 +37,20 @@ type Config struct {
 	// ExchangeRate-API (https://www.exchangerate-api.com)
 	ExchangeRateAPIKey     string // required for live rates; falls back to local rates if empty
 	ExchangeRateAPIBaseURL string // default: https://v6.exchangerate-api.com/v6
+
+	// PCI-DSS: tajni ključ za HMAC-SHA256 hashiranje CVV kodova kartica.
+	// Mora biti postavljen u produkciji — bez ovog ključa CVV je brute-forceable.
+	CVVPepper string // env: CVV_PEPPER
+
+	// Redis — koristi se za keširanje OTP state-a u Flow 2 (zahtev za karticu).
+	// Format: "redis://localhost:6379" ili "redis://:password@host:6379/0"
+	// Ako je prazno, RequestKartica endpoint vraća 500 (Feature Flag za dev okruženje).
+	RedisURL string // env: REDIS_URL
+
+	// NotificationServiceAddr je adresa notification-service gRPC servera.
+	// Koristi se za sinhronizovano slanje OTP emaila u Flow 2.
+	// Ako je prazno, RequestKartica endpoint vraća 500.
+	NotificationServiceAddr string // env: NOTIFICATION_SERVICE_ADDR
 }
 
 // Load reads ENV vars and returns a populated Config.
@@ -51,7 +66,8 @@ func Load() (*Config, error) {
 
 	return &Config{
 		HTTPAddr: getEnv("HTTP_ADDR", "0.0.0.0:8082"),
-		GRPCAddr: getEnv("GRPC_ADDR", "0.0.0.0:50052"),
+		GRPCAddr:        getEnv("GRPC_ADDR", "0.0.0.0:50052"),
+		UserServiceAddr: getEnv("USER_SERVICE_ADDR", "user-service:50051"),
 
 		DBHost:     os.Getenv("DB_HOST"),
 		DBPort:     os.Getenv("DB_PORT"),
@@ -68,6 +84,11 @@ func Load() (*Config, error) {
 		LatePaymentPenalty:  getEnvFloat("LATE_PAYMENT_PENALTY_PCT", 0.05),
 		ExchangeRateAPIKey:     os.Getenv("EXCHANGE_RATE_API_KEY"),
 		ExchangeRateAPIBaseURL: getEnv("EXCHANGE_RATE_API_BASE_URL", "https://v6.exchangerate-api.com/v6"),
+
+		CVVPepper: getEnv("CVV_PEPPER", "change-me-cvv-pepper-in-production"),
+
+		RedisURL:                os.Getenv("REDIS_URL"),
+		NotificationServiceAddr: getEnv("NOTIFICATION_SERVICE_ADDR", "notification-service:50053"),
 	}, nil
 }
 
