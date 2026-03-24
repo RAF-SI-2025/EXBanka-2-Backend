@@ -38,6 +38,10 @@ type Config struct {
 	ExchangeRateAPIKey     string // required for live rates; falls back to local rates if empty
 	ExchangeRateAPIBaseURL string // default: https://v6.exchangerate-api.com/v6
 
+	// Exchange rate parameters (0–1 range; 0.005 = 0.5%)
+	ExchangeSpreadRate    float64 // env: EXCHANGE_SPREAD_RATE    — spread primenjen na srednji kurs
+	ExchangeProvizijaRate float64 // env: EXCHANGE_PROVIZIJA_RATE — stopa provizije po konverziji
+
 	// PCI-DSS: tajni ključ za HMAC-SHA256 hashiranje CVV kodova kartica.
 	// Mora biti postavljen u produkciji — bez ovog ključa CVV je brute-forceable.
 	CVVPepper string // env: CVV_PEPPER
@@ -84,6 +88,8 @@ func Load() (*Config, error) {
 		LatePaymentPenalty:  getEnvFloat("LATE_PAYMENT_PENALTY_PCT", 0.05),
 		ExchangeRateAPIKey:     os.Getenv("EXCHANGE_RATE_API_KEY"),
 		ExchangeRateAPIBaseURL: getEnv("EXCHANGE_RATE_API_BASE_URL", "https://v6.exchangerate-api.com/v6"),
+		ExchangeSpreadRate:    getEnvFloat("EXCHANGE_SPREAD_RATE", 0.005),
+		ExchangeProvizijaRate: getEnvFloat("EXCHANGE_PROVIZIJA_RATE", 0.005),
 
 		CVVPepper: getEnv("CVV_PEPPER", "change-me-cvv-pepper-in-production"),
 

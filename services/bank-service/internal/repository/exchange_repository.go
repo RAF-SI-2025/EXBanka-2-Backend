@@ -16,6 +16,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// trezorVlasnikID je ID korisnika trezor@exbanka.rs u user-service-u,
+// seeded u 000010_seed_banka_firma.up.sql (admin=1, trezor=2).
+const trezorVlasnikID = 2
+
 type exchangeTransferRepository struct {
 	db *gorm.DB
 }
@@ -61,28 +65,45 @@ func (r *exchangeTransferRepository) fetchAccountInfo(ctx context.Context, db *g
 	return &row, nil
 }
 
-// ExecuteTransfer validates both accounts and atomically debits source + credits target.
+// fetchTreasuryID vraća ID trezorskog računa banke za datu valutu.
+// Trezorski računi su vlasništvo korisnika trezorVlasnikID (trezor@exbanka.rs).
+func (r *exchangeTransferRepository) fetchTreasuryID(ctx context.Context, db *gorm.DB, currencyOznaka string) (int64, error) {
+	var id int64
+	err := db.WithContext(ctx).Raw(`
+		SELECT ra.id
+		FROM core_banking.racun ra
+		JOIN core_banking.valuta v ON v.id = ra.id_valute
+		WHERE ra.id_vlasnika = ?
+		  AND v.oznaka = ?
+		  AND ra.status = 'AKTIVAN'
+		LIMIT 1
+	`, trezorVlasnikID, currencyOznaka).Scan(&id).Error
+	if err != nil {
+		return 0, err
+	}
+	if id == 0 {
+		return 0, fmt.Errorf("trezorski račun za valutu %s nije pronađen", currencyOznaka)
+	}
+	return id, nil
+}
+
+// ExecuteTransfer validates both accounts and atomically executes a 4-way journal entry
+// (četvorostruko knjiženje) within a single DB transaction (ACID):
 //
-// Validation order:
-//  1. Account existence (pre-flight, unlocked)
-//  2. Ownership (both accounts must belong to VlasnikID)
-//  3. Active status
-//  4. Currency match (src.ValutaOznaka == input.FromOznaka, tgt == ToOznaka)
-//  5. Available funds (optimistic pre-check, then re-checked under lock)
+//  1. Klijentski izvorišni račun  → zadužuje se za input.Amount        (MENJACNICA)
+//  2. Trezor banke (from valuta)  → odobrava se za input.Amount        (MENJACNICA)
+//  3. Trezor banke (to valuta)    → zadužuje se za conversion.Bruto    (MENJACNICA)
+//  4. Klijentski odredišni račun  → odobrava se za conversion.Result   (MENJACNICA)
 //
-// Execution (within a DB transaction with SELECT FOR UPDATE):
-//   - Locks both accounts in deterministic id ASC order (prevents deadlock)
-//   - Re-validates available funds after acquiring lock
-//   - Debits source by input.Amount
-//   - Credits target by conversion.Result (net amount)
-//   - Inserts ISPLATA transakcija on source, UPLATA on target
+// Provizija (= Bruto - Result) ostaje u trezoru banke (to valuta).
+// Svi računi se zaključavaju u determinističkom redosledu (id ASC) radi sprečavanja deadlock-a.
 func (r *exchangeTransferRepository) ExecuteTransfer(
 	ctx context.Context,
 	input domain.ExchangeTransferInput,
 	conversion domain.ExchangeConversionResult,
 ) (*domain.ExchangeTransferResult, error) {
 
-	// ── Pre-flight validation (no lock) ──────────────────────────────────────
+	// ── Pre-flight validacija (bez locka) ────────────────────────────────────
 	src, err := r.fetchAccountInfo(ctx, r.db, input.SourceAccountID)
 	if err != nil {
 		return nil, err
@@ -114,42 +135,56 @@ func (r *exchangeTransferRepository) ExecuteTransfer(
 		return nil, domain.ErrExchangeInsufficientFunds
 	}
 
-	// ── Atomic execution ─────────────────────────────────────────────────────
+	// Pre-flight: pronađi trezorske račune (unlocked read).
+	treasuryFromID, err := r.fetchTreasuryID(ctx, r.db, input.FromOznaka)
+	if err != nil {
+		return nil, err
+	}
+	treasuryToID, err := r.fetchTreasuryID(ctx, r.db, input.ToOznaka)
+	if err != nil {
+		return nil, err
+	}
+
+	// ── Atomična egzekucija ───────────────────────────────────────────────────
 	var result *domain.ExchangeTransferResult
 
 	txErr := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Lock both accounts in deterministic id ASC order to prevent deadlock.
-		first, second := input.SourceAccountID, input.TargetAccountID
-		if input.TargetAccountID < input.SourceAccountID {
-			first, second = input.TargetAccountID, input.SourceAccountID
+		// Prikupi sve ID-jeve i deduplikuj (sigurnost za edge case-ove).
+		rawIDs := []int64{input.SourceAccountID, input.TargetAccountID, treasuryFromID, treasuryToID}
+		seen := make(map[int64]struct{}, len(rawIDs))
+		uniqueIDs := make([]int64, 0, len(rawIDs))
+		for _, id := range rawIDs {
+			if _, ok := seen[id]; !ok {
+				seen[id] = struct{}{}
+				uniqueIDs = append(uniqueIDs, id)
+			}
 		}
 
+		// Zaključaj sve račune u id ASC redosledu — sprečava deadlock.
 		var locked []racunModel
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("id IN (?, ?)", first, second).
+			Where("id IN ?", uniqueIDs).
 			Order("id ASC").
 			Find(&locked).Error; err != nil {
 			return err
 		}
-		if len(locked) != 2 {
+		if len(locked) != len(uniqueIDs) {
 			return domain.ErrAccountNotFound
 		}
 
-		// Identify source and target from locked rows.
-		var srcLocked, tgtLocked *racunModel
+		// Napravi mapu iz zaključanih redova.
+		lockedByID := make(map[int64]*racunModel, len(locked))
 		for i := range locked {
-			switch locked[i].ID {
-			case input.SourceAccountID:
-				srcLocked = &locked[i]
-			case input.TargetAccountID:
-				tgtLocked = &locked[i]
-			}
+			lockedByID[locked[i].ID] = &locked[i]
 		}
-		if srcLocked == nil || tgtLocked == nil {
+
+		srcLocked := lockedByID[input.SourceAccountID]
+		if srcLocked == nil || lockedByID[input.TargetAccountID] == nil ||
+			lockedByID[treasuryFromID] == nil || lockedByID[treasuryToID] == nil {
 			return domain.ErrAccountNotFound
 		}
 
-		// Re-validate funds after acquiring lock.
+		// Ponovna validacija sredstava nakon locka.
 		availableNow := srcLocked.StanjeRacuna - srcLocked.RezervovanaSredstva
 		if availableNow < input.Amount {
 			return domain.ErrExchangeInsufficientFunds
@@ -157,49 +192,78 @@ func (r *exchangeTransferRepository) ExecuteTransfer(
 
 		now := time.Now().UTC()
 		opis := fmt.Sprintf(
-			"Konverzija: %.4g %s → %.4g %s",
+			"Menjačnica: %.4g %s → %.4g %s (provizija: %.4g %s)",
 			input.Amount, input.FromOznaka,
 			conversion.Result, input.ToOznaka,
+			conversion.Provizija, input.ToOznaka,
 		)
 
-		// Debit source account.
+		// 1. Zaduži klijentski izvorišni račun.
 		if err := tx.Model(&racunModel{}).
 			Where("id = ?", input.SourceAccountID).
 			Update("stanje_racuna", gorm.Expr("stanje_racuna - ?", input.Amount)).Error; err != nil {
-			return fmt.Errorf("debit source: %w", err)
+			return fmt.Errorf("zaduži klijentski izvor: %w", err)
 		}
 
-		// Credit target account.
+		// 2. Odobri trezor banke u from valuti.
+		if err := tx.Model(&racunModel{}).
+			Where("id = ?", treasuryFromID).
+			Update("stanje_racuna", gorm.Expr("stanje_racuna + ?", input.Amount)).Error; err != nil {
+			return fmt.Errorf("odobri trezor from: %w", err)
+		}
+
+		// 3. Zaduži trezor banke u to valuti za bruto iznos.
+		//    Provizija (bruto - neto) ostaje u trezoru.
+		if err := tx.Model(&racunModel{}).
+			Where("id = ?", treasuryToID).
+			Update("stanje_racuna", gorm.Expr("stanje_racuna - ?", conversion.Bruto)).Error; err != nil {
+			return fmt.Errorf("zaduži trezor to: %w", err)
+		}
+
+		// 4. Odobri klijentski odredišni račun neto iznosom.
 		if err := tx.Model(&racunModel{}).
 			Where("id = ?", input.TargetAccountID).
 			Update("stanje_racuna", gorm.Expr("stanje_racuna + ?", conversion.Result)).Error; err != nil {
-			return fmt.Errorf("credit target: %w", err)
+			return fmt.Errorf("odobri klijentski odredišni: %w", err)
 		}
 
-		// Insert ISPLATA transakcija on source account.
-		srcTx := &transakcijaModel{
-			RacunID:          input.SourceAccountID,
-			TipTransakcije:   "ISPLATA",
-			Iznos:            input.Amount,
-			Opis:             opis,
-			VremeIzvrsavanja: now,
-			Status:           "IZVRSEN",
+		// Audit trail: 4 transakcije, sve tipa MENJACNICA.
+		entries := []transakcijaModel{
+			{
+				RacunID:          input.SourceAccountID,
+				TipTransakcije:   "MENJACNICA",
+				Iznos:            input.Amount,
+				Opis:             opis,
+				VremeIzvrsavanja: now,
+				Status:           "IZVRSEN",
+			},
+			{
+				RacunID:          treasuryFromID,
+				TipTransakcije:   "MENJACNICA",
+				Iznos:            input.Amount,
+				Opis:             opis,
+				VremeIzvrsavanja: now,
+				Status:           "IZVRSEN",
+			},
+			{
+				RacunID:          treasuryToID,
+				TipTransakcije:   "MENJACNICA",
+				Iznos:            conversion.Bruto,
+				Opis:             opis,
+				VremeIzvrsavanja: now,
+				Status:           "IZVRSEN",
+			},
+			{
+				RacunID:          input.TargetAccountID,
+				TipTransakcije:   "MENJACNICA",
+				Iznos:            conversion.Result,
+				Opis:             opis,
+				VremeIzvrsavanja: now,
+				Status:           "IZVRSEN",
+			},
 		}
-		if err := tx.Create(srcTx).Error; err != nil {
-			return fmt.Errorf("insert source transaction: %w", err)
-		}
-
-		// Insert UPLATA transakcija on target account.
-		tgtTx := &transakcijaModel{
-			RacunID:          input.TargetAccountID,
-			TipTransakcije:   "UPLATA",
-			Iznos:            conversion.Result,
-			Opis:             opis,
-			VremeIzvrsavanja: now,
-			Status:           "IZVRSEN",
-		}
-		if err := tx.Create(tgtTx).Error; err != nil {
-			return fmt.Errorf("insert target transaction: %w", err)
+		if err := tx.Create(&entries).Error; err != nil {
+			return fmt.Errorf("upiši transakcije: %w", err)
 		}
 
 		referenceID := fmt.Sprintf("KNV-%s-%06d",

@@ -9,15 +9,6 @@ import (
 	"banka-backend/services/bank-service/internal/domain"
 )
 
-const (
-	// provizijaRate je stopa provizije primenjena na svaku konverziju (0,5 %).
-	provizijaRate = 0.005
-
-	// spreadRate je polu-raspon koji se primenjuje na srednji kurs da bi se
-	// dobili kupovni (mid * (1 - spread)) i prodajni (mid * (1 + spread)) kursevi.
-	spreadRate = 0.005
-)
-
 // fallbackMidRates are approximate mid rates (RSD per 1 unit) used when the
 // live provider is unavailable. Values reflect typical EUR/RSD parity.
 var fallbackMidRates = map[string]float64{
@@ -31,13 +22,26 @@ var fallbackMidRates = map[string]float64{
 }
 
 type exchangeService struct {
-	provider     domain.ExchangeProvider
-	transferRepo domain.ExchangeTransferRepository
+	provider      domain.ExchangeProvider
+	transferRepo  domain.ExchangeTransferRepository
+	spreadRate    float64 // polu-raspon za kupovni/prodajni kurs (npr. 0.005 = 0.5%)
+	provizijaRate float64 // stopa provizije po konverziji (npr. 0.005 = 0.5%)
 }
 
-// NewExchangeService creates a new ExchangeService backed by the given provider and transfer repository.
-func NewExchangeService(provider domain.ExchangeProvider, transferRepo domain.ExchangeTransferRepository) domain.ExchangeService {
-	return &exchangeService{provider: provider, transferRepo: transferRepo}
+// NewExchangeService creates a new ExchangeService.
+// spreadRate i provizijaRate čitaju se iz konfiguracije (env: EXCHANGE_SPREAD_RATE, EXCHANGE_PROVIZIJA_RATE).
+func NewExchangeService(
+	provider domain.ExchangeProvider,
+	transferRepo domain.ExchangeTransferRepository,
+	spreadRate float64,
+	provizijaRate float64,
+) domain.ExchangeService {
+	return &exchangeService{
+		provider:      provider,
+		transferRepo:  transferRepo,
+		spreadRate:    spreadRate,
+		provizijaRate: provizijaRate,
+	}
 }
 
 // getMidRates returns live mid rates; silently falls back to local values on error.
@@ -50,7 +54,7 @@ func (s *exchangeService) getMidRates(ctx context.Context) map[string]float64 {
 }
 
 // buildRate converts a mid rate to a full ExchangeRate with spread.
-func buildRate(code string, mid float64) domain.ExchangeRate {
+func buildRate(code string, mid, spreadRate float64) domain.ExchangeRate {
 	naziv := domain.ExchangeCurrencyNames[code]
 	if naziv == "" {
 		naziv = code
@@ -73,7 +77,7 @@ func (s *exchangeService) GetRates(ctx context.Context) ([]domain.ExchangeRate, 
 		if !ok {
 			continue
 		}
-		result = append(result, buildRate(code, mid))
+		result = append(result, buildRate(code, mid, s.spreadRate))
 	}
 	return result, nil
 }
@@ -114,9 +118,9 @@ func (s *exchangeService) CalculateExchange(
 		if !ok {
 			return nil, domain.ErrExchangeRateNotFound
 		}
-		toRate := buildRate(toOznaka, toMid)
+		toRate := buildRate(toOznaka, toMid, s.spreadRate)
 		bruto := amount / toRate.Prodajni
-		p := bruto * provizijaRate
+		p := bruto * s.provizijaRate
 		return &domain.ExchangeConversionResult{
 			Result:    max(0, bruto-p),
 			Bruto:     bruto,
@@ -132,9 +136,9 @@ func (s *exchangeService) CalculateExchange(
 		if !ok {
 			return nil, domain.ErrExchangeRateNotFound
 		}
-		fromRate := buildRate(fromOznaka, fromMid)
+		fromRate := buildRate(fromOznaka, fromMid, s.spreadRate)
 		bruto := amount * fromRate.Kupovni
-		p := bruto * provizijaRate
+		p := bruto * s.provizijaRate
 		return &domain.ExchangeConversionResult{
 			Result:    max(0, bruto-p),
 			Bruto:     bruto,
@@ -154,12 +158,12 @@ func (s *exchangeService) CalculateExchange(
 		return nil, errors.New("kurs za valutu " + toOznaka + " nije dostupan")
 	}
 
-	fromRate := buildRate(fromOznaka, fromMid)
-	toRate := buildRate(toOznaka, toMid)
+	fromRate := buildRate(fromOznaka, fromMid, s.spreadRate)
+	toRate := buildRate(toOznaka, toMid, s.spreadRate)
 
 	rsdAmount := amount * fromRate.Kupovni     // prodajemo fromOznaka, dobijamo RSD
 	bruto := rsdAmount / toRate.Prodajni       // kupujemo toOznaka za RSD
-	p := bruto * provizijaRate
+	p := bruto * s.provizijaRate
 
 	return &domain.ExchangeConversionResult{
 		Result:    max(0, bruto-p),

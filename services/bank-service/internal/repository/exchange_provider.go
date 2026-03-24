@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"banka-backend/services/bank-service/internal/domain"
 )
+
+const cacheTTL = 15 * time.Minute
 
 // exchangeRateAPIResponse is the JSON response shape from ExchangeRate-API v6.
 //
@@ -22,10 +25,18 @@ type exchangeRateAPIResponse struct {
 // ExchangeRateProvider fetches live mid rates from ExchangeRate-API v6.
 // It uses USD as the base currency (available on all plan tiers) and derives
 // RSD-per-unit values for every supported currency.
+//
+// Kursevi se keširaju u memoriji na cacheTTL (15 min) kako bi se smanjio
+// broj poziva eksternog API-ja. RWMutex omogućava da više goroutina čita
+// istovremeno, dok samo jedna može osvežiti cache.
 type ExchangeRateProvider struct {
 	apiKey  string
 	baseURL string // e.g. "https://v6.exchangerate-api.com/v6"
 	client  *http.Client
+
+	mu          sync.RWMutex
+	cachedRates map[string]float64
+	cachedAt    time.Time
 }
 
 // NewExchangeRateProvider creates a new provider.
@@ -38,13 +49,31 @@ func NewExchangeRateProvider(apiKey, baseURL string) *ExchangeRateProvider {
 	}
 }
 
-// GetMidRates calls ExchangeRate-API with USD as base and converts the rates to
-// "how many RSD equals 1 unit of currency X":
+// GetMidRates vraća srednje kurseve za podržane valute, izražene u RSD.
+// Rezultat se kešira na cacheTTL; svežu vrednost povlači tek kada cache istekne.
 //
-//	midRate(X) = conversionRates["RSD"] / conversionRates["X"]
+// Konverzija: midRate(X) = conversionRates["RSD"] / conversionRates["X"]
 //
 // Returns domain.ErrExchangeProviderUnavailable on any network/parse error.
 func (p *ExchangeRateProvider) GetMidRates(ctx context.Context) (map[string]float64, error) {
+	// Brza provera cache-a — samo read lock.
+	p.mu.RLock()
+	if p.cachedRates != nil && time.Since(p.cachedAt) < cacheTTL {
+		rates := p.cachedRates
+		p.mu.RUnlock()
+		return rates, nil
+	}
+	p.mu.RUnlock()
+
+	// Cache je istekao ili prazan — pozovi API pa osveži.
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	// Double-check: druga goroutina je možda već osvežila cache dok smo čekali na Lock.
+	if p.cachedRates != nil && time.Since(p.cachedAt) < cacheTTL {
+		return p.cachedRates, nil
+	}
+
 	url := fmt.Sprintf("%s/%s/latest/USD", p.baseURL, p.apiKey)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -85,6 +114,9 @@ func (p *ExchangeRateProvider) GetMidRates(ctx context.Context) (map[string]floa
 		}
 		result[code] = rsdPerUSD / usdToX
 	}
+
+	p.cachedRates = result
+	p.cachedAt = time.Now()
 
 	return result, nil
 }

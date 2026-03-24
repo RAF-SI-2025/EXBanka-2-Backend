@@ -64,6 +64,7 @@ func newTestService() domain.ExchangeService {
 	return service.NewExchangeService(
 		&mockExchangeProvider{rates: testRates},
 		&mockExchangeTransferRepo{},
+		0.005, 0.005,
 	)
 }
 
@@ -71,6 +72,7 @@ func newTestServiceWithRepoErr(repoErr error) domain.ExchangeService {
 	return service.NewExchangeService(
 		&mockExchangeProvider{rates: testRates},
 		&mockExchangeTransferRepo{err: repoErr},
+		0.005, 0.005,
 	)
 }
 
@@ -305,5 +307,51 @@ func TestExecuteExchangeTransfer_WrongCurrency_PropagatedFromRepo(t *testing.T) 
 	})
 	if !errors.Is(err, domain.ErrExchangeWrongCurrency) {
 		t.Errorf("expected ErrExchangeWrongCurrency from repo, got %v", err)
+	}
+}
+
+// ─── GetRates ─────────────────────────────────────────────────────────────────
+
+func TestGetRates_ReturnsSupportedCodes(t *testing.T) {
+	svc := newTestService()
+	rates, err := svc.GetRates(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// testRates contains EUR, USD, GBP — all in SupportedExchangeCodes.
+	if len(rates) == 0 {
+		t.Fatal("expected at least one rate, got 0")
+	}
+	seen := make(map[string]bool)
+	for _, r := range rates {
+		seen[r.Oznaka] = true
+		if r.Kupovni <= 0 || r.Srednji <= 0 || r.Prodajni <= 0 {
+			t.Errorf("rate %q has non-positive field: %+v", r.Oznaka, r)
+		}
+		if r.Kupovni >= r.Srednji || r.Srednji >= r.Prodajni {
+			t.Errorf("rate %q: expected kupovni < srednji < prodajni, got %+v", r.Oznaka, r)
+		}
+	}
+	for _, code := range []string{"EUR", "USD", "GBP"} {
+		if !seen[code] {
+			t.Errorf("expected rate for %q, not found", code)
+		}
+	}
+}
+
+// TestGetRates_FallbackUsed verifies that when the provider returns an error,
+// the service silently falls back to static rates and still returns results.
+func TestGetRates_FallbackUsed(t *testing.T) {
+	svc := service.NewExchangeService(
+		&mockExchangeProvider{err: errors.New("provider down")},
+		&mockExchangeTransferRepo{},
+		0.005, 0.005,
+	)
+	rates, err := svc.GetRates(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rates) == 0 {
+		t.Error("expected fallback rates to be returned, got 0")
 	}
 }

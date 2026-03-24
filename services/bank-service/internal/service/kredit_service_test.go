@@ -340,3 +340,81 @@ func TestApplyForCredit_UnknownType(t *testing.T) {
 	})
 	assert.Error(t, err)
 }
+
+func TestApplyForCredit_InvalidRok(t *testing.T) {
+	repo := mocks.NewMockKreditRepository(t)
+	svc := newKreditService(repo)
+
+	_, err := svc.ApplyForCredit(context.Background(), domain.CreateKreditniZahtevInput{
+		IznosKredita: 50_000,
+		RokOtplate:   0,
+		BrojRacuna:   "123",
+		VrstaKredita: "AUTO",
+		TipKamate:    "FIKSNI",
+	})
+	assert.Error(t, err)
+}
+
+func TestApplyForCredit_EmptyBrojRacuna(t *testing.T) {
+	repo := mocks.NewMockKreditRepository(t)
+	svc := newKreditService(repo)
+
+	_, err := svc.ApplyForCredit(context.Background(), domain.CreateKreditniZahtevInput{
+		IznosKredita: 50_000,
+		RokOtplate:   12,
+		BrojRacuna:   "",
+		VrstaKredita: "AUTO",
+		TipKamate:    "FIKSNI",
+	})
+	assert.Error(t, err)
+}
+
+func TestApplyForCredit_InvalidTipKamate(t *testing.T) {
+	repo := mocks.NewMockKreditRepository(t)
+	svc := newKreditService(repo)
+
+	_, err := svc.ApplyForCredit(context.Background(), domain.CreateKreditniZahtevInput{
+		IznosKredita: 50_000,
+		RokOtplate:   12,
+		BrojRacuna:   "123",
+		VrstaKredita: "AUTO",
+		TipKamate:    "NEPOZNATI",
+	})
+	assert.Error(t, err)
+}
+
+func TestApplyForCredit_Success(t *testing.T) {
+	repo := mocks.NewMockKreditRepository(t)
+	ctx := context.Background()
+	input := domain.CreateKreditniZahtevInput{
+		IznosKredita: 100_000,
+		RokOtplate:   24,
+		BrojRacuna:   "666000112000000001",
+		VrstaKredita: "GOTOVINSKI",
+		TipKamate:    "VARIJABILNI",
+		VlasnikID:    7,
+		Valuta:       "RSD",
+	}
+	want := &domain.KreditniZahtev{ID: 42}
+	repo.On("CreateKreditniZahtev", ctx, input).Return(want, nil)
+
+	svc := newKreditService(repo)
+	got, err := svc.ApplyForCredit(ctx, input)
+	require.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+// ─── toRSD ────────────────────────────────────────────────────────────────────
+
+func TestToRSD_KnownCurrency(t *testing.T) {
+	// EUR should convert using the rsdEquivalentRates map.
+	result := toRSD(100, "EUR")
+	assert.Greater(t, result, 0.0)
+	assert.NotEqual(t, 100.0, result) // should be != 100 since EUR != RSD
+}
+
+func TestToRSD_UnknownCurrency(t *testing.T) {
+	// Unknown currency should return the amount unchanged (treated as RSD).
+	result := toRSD(500, "UNKNOWN_CCY")
+	assert.Equal(t, 500.0, result)
+}
