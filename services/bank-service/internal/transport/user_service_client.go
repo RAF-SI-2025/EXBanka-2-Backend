@@ -52,6 +52,53 @@ func (c *UserServiceClient) GetClientEmail(ctx context.Context, clientID int64) 
 	return resp.GetClient().GetEmail(), nil
 }
 
+// ClientInfo objedinjuje ime, prezime i email klijenta u jednoj strukturi.
+// Vraća se metodom GetClientInfo kako bi se izbeglo višestruko pozivanje user-service-a.
+type ClientInfo struct {
+	FirstName string
+	LastName  string
+	Email     string
+}
+
+// GetClientInfo calls GetClientByID on user-service and returns the client's
+// first name, last name, and email in a single round-trip.
+//
+// Returns the gRPC error as-is so the caller can inspect the status code:
+//   - codes.NotFound      → client does not exist
+//   - codes.DeadlineExceeded / codes.Unavailable → user-service unreachable
+func (c *UserServiceClient) GetClientInfo(ctx context.Context, clientID int64) (*ClientInfo, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+	resp, err := c.client.GetClientByID(ctx, &userv1.GetClientByIDRequest{Id: clientID})
+	if err != nil {
+		return nil, err
+	}
+	cl := resp.GetClient()
+	return &ClientInfo{
+		FirstName: cl.GetFirstName(),
+		LastName:  cl.GetLastName(),
+		Email:     cl.GetEmail(),
+	}, nil
+}
+
+// GetClientName calls GetClientByID on user-service and returns the client's
+// first and last name. The caller should use a context with an appropriate timeout.
+//
+// Returns the gRPC error as-is so the caller can inspect the status code:
+//   - codes.NotFound      → client does not exist
+//   - codes.DeadlineExceeded / codes.Unavailable → user-service unreachable
+func (c *UserServiceClient) GetClientName(ctx context.Context, clientID int64) (firstName, lastName string, err error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+	resp, err := c.client.GetClientByID(ctx, &userv1.GetClientByIDRequest{Id: clientID})
+	if err != nil {
+		return "", "", err
+	}
+	return resp.GetClient().GetFirstName(), resp.GetClient().GetLastName(), nil
+}
+
 // GetMyEmail calls GetMyProfile on user-service and returns the caller's own
 // email address. Works with any authenticated JWT (CLIENT or EMPLOYEE).
 // Use this from HTTP handlers where the token belongs to the calling user.

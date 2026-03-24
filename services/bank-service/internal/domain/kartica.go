@@ -27,6 +27,10 @@ var (
 	ErrKarticaVecBlokirana = errors.New("kartica je već blokirana")
 	ErrKarticaDeaktivirana = errors.New("deaktivirana kartica ne može biti blokirana")
 
+	// Portal zaposlenih — promena statusa kartice
+	ErrNedozvoljenaPromenaSatusa = errors.New("nedozvoljena promena statusa kartice")
+	ErrKarticaVecAktivna        = errors.New("kartica je već aktivna")
+
 	// Flow 2 Korak 2 — verifikacija OTP-a
 	ErrCardRequestNotFound = errors.New("nema aktivnog zahteva za karticu — pokrenite novi zahtev")
 	ErrOTPInvalid          = errors.New("pogrešan verifikacioni kod")
@@ -132,6 +136,16 @@ type RacunVlasnikInfo struct {
 	MesecniLimit float64
 }
 
+// KarticaEmployeeRow je minimalna projekcija kartice za portal zaposlenih.
+// Sadrži ID vlasnika računa kako bi handler mogao da dohvati ime/prezime/email
+// sinhronim pozivom ka user-service-u.
+type KarticaEmployeeRow struct {
+	ID          int64
+	BrojKartice string
+	Status      string
+	VlasnikID   int64
+}
+
 // KarticaSaRacunom objedinjuje karticu sa osnovnim podacima o računu za koji je vezana.
 // Koristi se u klijentskom API-ju za prikaz liste kartica.
 type KarticaSaRacunom struct {
@@ -145,6 +159,16 @@ type KarticaSaRacunom struct {
 type KarticaOwnerInfo struct {
 	Status    string
 	VlasnikID int64
+}
+
+// KarticaZaStatusChange sadrži podatke kartice potrebne za promenu statusa
+// od strane zaposlenog, uključujući podatke o računu i ovlašćenom licu.
+type KarticaZaStatusChange struct {
+	ID             int64
+	TrenutniStatus string
+	VlasnikID      int64
+	VrstaRacuna    string         // "LICNI" | "POSLOVNI"
+	OvlascenoLice  *OvlascenoLice // nil za lične račune
 }
 
 // CardRequestState je JSON payload koji se keširaju u Redis pod ključem card_req_{vlasnikID}.
@@ -230,6 +254,15 @@ type KarticaRepository interface {
 	// SetKarticaStatus ažurira status kartice.
 	// Poziva se samo nakon što je servis potvrdio vlasništvo i dozvoljenost prelaza.
 	SetKarticaStatus(ctx context.Context, karticaID int64, noviStatus string) error
+
+	// GetKarticeZaRacunBroj vraća sve kartice za račun identifikovan brojem računa,
+	// zajedno sa ID-em vlasnika računa — za portal zaposlenih.
+	GetKarticeZaRacunBroj(ctx context.Context, brojRacuna string) ([]KarticaEmployeeRow, error)
+
+	// GetKarticaZaStatusChange dohvata karticu po broju kartice, zajedno sa
+	// podacima o računu (vrsta_racuna, vlasnik_id) i ovlašćenim licem.
+	// Koristi se isključivo od strane zaposlenih za promenu statusa.
+	GetKarticaZaStatusChange(ctx context.Context, brojKartice string) (*KarticaZaStatusChange, error)
 }
 
 // KarticaService definiše ugovor prema sloju poslovne logike.
@@ -259,4 +292,13 @@ type KarticaService interface {
 	//   2. kartica je u statusu AKTIVNA (jedini dozvoljeni prelaz: AKTIVNA → BLOKIRANA)
 	// Klijent ne može sam da odblokira niti deaktivira karticu.
 	BlokirajKarticu(ctx context.Context, karticaID, korisnikID int64) error
+
+	// GetKarticeZaPortalZaposlenih vraća kartice za dati broj računa — za portal zaposlenih.
+	GetKarticeZaPortalZaposlenih(ctx context.Context, brojRacuna string) ([]KarticaEmployeeRow, error)
+
+	// ChangeEmployeeCardStatus menja status kartice od strane zaposlenog.
+	// Dozvoljena tranzicija statusa: AKTIVNA↔BLOKIRANA, */→DEAKTIVIRANA.
+	// Vraća podatke o kartici (vlasnik, vrsta računa, ovlašćeno lice) potrebne
+	// za slanje email notifikacija.
+	ChangeEmployeeCardStatus(ctx context.Context, brojKartice, noviStatus string) (*KarticaZaStatusChange, error)
 }

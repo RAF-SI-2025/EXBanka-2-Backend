@@ -8,13 +8,19 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// Tipovi account email evenata — koriste se kao vrednost polja Type.
+const (
+	AccountCreatedType     = "ACCOUNT_CREATED"
+	CardStatusChangedType  = "CARD_STATUS_CHANGED"
+)
+
 // AccountEmailEvent je payload za account-related emailove.
 // Poklapa se sa core user-service EmailEvent contractom {type, email, token}
 // pa notification-service može da ga konzumira bez izmene consumera.
 type AccountEmailEvent struct {
-	Type  string `json:"type"`  // "ACCOUNT_CREATED"
+	Type  string `json:"type"`  // "ACCOUNT_CREATED" | "CARD_STATUS_CHANGED"
 	Email string `json:"email"` // email primaoca
-	Token string `json:"token"` // prazno za account evente
+	Token string `json:"token"` // novi status kartice za CARD_STATUS_CHANGED; prazno inače
 }
 
 // AccountEmailPublisher apstrahuje slanje account email notifikacija.

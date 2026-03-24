@@ -385,3 +385,106 @@ func (r *karticaRepository) HasOvlascenoLiceKarticu(ctx context.Context, emailAd
 	}
 	return count > 0, nil
 }
+
+// karticaStatusChangeRow je GORM projekcija za dohvat kartice pri promeni statusa.
+type karticaStatusChangeRow struct {
+	ID             int64   `gorm:"column:id"`
+	TrenutniStatus string  `gorm:"column:trenutni_status"`
+	IDVlasnika     int64   `gorm:"column:id_vlasnika"`
+	VrstaRacuna    string  `gorm:"column:vrsta_racuna"`
+	OLIme          *string `gorm:"column:ol_ime"`
+	OLPrezime      *string `gorm:"column:ol_prezime"`
+	OLEmail        *string `gorm:"column:ol_email"`
+	OLKarticaID    *int64  `gorm:"column:ol_kartica_id"`
+}
+
+// GetKarticaZaStatusChange dohvata karticu po broju kartice, zajedno sa podacima o računu
+// i ovlašćenom licu (LEFT JOIN) — za portal zaposlenih.
+func (r *karticaRepository) GetKarticaZaStatusChange(ctx context.Context, brojKartice string) (*domain.KarticaZaStatusChange, error) {
+	var row karticaStatusChangeRow
+
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			k.id,
+			k.status              AS trenutni_status,
+			ra.id_vlasnika,
+			ra.vrsta_racuna,
+			ol.ime                AS ol_ime,
+			ol.prezime            AS ol_prezime,
+			ol.email_adresa       AS ol_email,
+			ol.kartica_id         AS ol_kartica_id
+		FROM core_banking.kartica k
+		JOIN core_banking.racun ra ON ra.id = k.racun_id
+		LEFT JOIN core_banking.ovlasceno_lice ol ON ol.kartica_id = k.id
+		WHERE k.broj_kartice = ?
+		LIMIT 1
+	`, brojKartice).Scan(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	if row.ID == 0 {
+		return nil, domain.ErrKarticaNotFound
+	}
+
+	result := &domain.KarticaZaStatusChange{
+		ID:             row.ID,
+		TrenutniStatus: row.TrenutniStatus,
+		VlasnikID:      row.IDVlasnika,
+		VrstaRacuna:    row.VrstaRacuna,
+	}
+	if row.OLKarticaID != nil {
+		result.OvlascenoLice = &domain.OvlascenoLice{
+			Ime:         ptrStr(row.OLIme),
+			Prezime:     ptrStr(row.OLPrezime),
+			EmailAdresa: ptrStr(row.OLEmail),
+		}
+	}
+	return result, nil
+}
+
+// ptrStr dereferencira *string i vraća "" ako je nil.
+func ptrStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// karticaEmployeeRow je GORM projekcija za upit na portalu zaposlenih.
+type karticaEmployeeRow struct {
+	ID          int64  `gorm:"column:id"`
+	BrojKartice string `gorm:"column:broj_kartice"`
+	Status      string `gorm:"column:status"`
+	IDVlasnika  int64  `gorm:"column:id_vlasnika"`
+}
+
+// GetKarticeZaRacunBroj vraća sve kartice vezane za račun sa datim brojem računa,
+// zajedno sa ID-em vlasnika — za portal zaposlenih.
+func (r *karticaRepository) GetKarticeZaRacunBroj(ctx context.Context, brojRacuna string) ([]domain.KarticaEmployeeRow, error) {
+	var rows []karticaEmployeeRow
+
+	err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			k.id,
+			k.broj_kartice,
+			k.status,
+			ra.id_vlasnika
+		FROM core_banking.kartica k
+		JOIN core_banking.racun ra ON ra.id = k.racun_id
+		WHERE ra.broj_racuna = ?
+	`, brojRacuna).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]domain.KarticaEmployeeRow, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, domain.KarticaEmployeeRow{
+			ID:          row.ID,
+			BrojKartice: row.BrojKartice,
+			Status:      row.Status,
+			VlasnikID:   row.IDVlasnika,
+		})
+	}
+	return result, nil
+}

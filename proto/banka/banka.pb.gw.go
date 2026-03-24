@@ -1010,6 +1010,125 @@ func local_request_BankaService_GetAllApprovedCredits_0(ctx context.Context, mar
 	return msg, metadata, err
 }
 
+func request_BankaService_EmployeeChangeCardStatus_0(ctx context.Context, marshaler runtime.Marshaler, client BankaServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq EmployeeChangeCardStatusRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["card_number"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "card_number")
+	}
+	protoReq.CardNumber, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "card_number", err)
+	}
+	msg, err := client.EmployeeChangeCardStatus(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_BankaService_EmployeeChangeCardStatus_0(ctx context.Context, marshaler runtime.Marshaler, server BankaServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq EmployeeChangeCardStatusRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil && !errors.Is(err, io.EOF) {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	val, ok := pathParams["card_number"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "card_number")
+	}
+	protoReq.CardNumber, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "card_number", err)
+	}
+	msg, err := server.EmployeeChangeCardStatus(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+var filter_BankaService_GetAllAccounts_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+
+func request_BankaService_GetAllAccounts_0(ctx context.Context, marshaler runtime.Marshaler, client BankaServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetAllAccountsRequest
+		metadata runtime.ServerMetadata
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_BankaService_GetAllAccounts_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := client.GetAllAccounts(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_BankaService_GetAllAccounts_0(ctx context.Context, marshaler runtime.Marshaler, server BankaServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetAllAccountsRequest
+		metadata runtime.ServerMetadata
+	)
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_BankaService_GetAllAccounts_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	msg, err := server.GetAllAccounts(ctx, &protoReq)
+	return msg, metadata, err
+}
+
+func request_BankaService_GetAccountCards_0(ctx context.Context, marshaler runtime.Marshaler, client BankaServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetAccountCardsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+	}
+	val, ok := pathParams["broj_racuna"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "broj_racuna")
+	}
+	protoReq.BrojRacuna, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "broj_racuna", err)
+	}
+	msg, err := client.GetAccountCards(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+}
+
+func local_request_BankaService_GetAccountCards_0(ctx context.Context, marshaler runtime.Marshaler, server BankaServiceServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var (
+		protoReq GetAccountCardsRequest
+		metadata runtime.ServerMetadata
+		err      error
+	)
+	val, ok := pathParams["broj_racuna"]
+	if !ok {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "missing parameter %s", "broj_racuna")
+	}
+	protoReq.BrojRacuna, err = runtime.String(val)
+	if err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "type mismatch, parameter: %s, error: %v", "broj_racuna", err)
+	}
+	msg, err := server.GetAccountCards(ctx, &protoReq)
+	return msg, metadata, err
+}
+
 // RegisterBankaServiceHandlerServer registers the http handlers for service BankaService to "mux".
 // UnaryRPC     :call BankaServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
@@ -1576,6 +1695,66 @@ func RegisterBankaServiceHandlerServer(ctx context.Context, mux *runtime.ServeMu
 		}
 		forward_BankaService_GetAllApprovedCredits_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPatch, pattern_BankaService_EmployeeChangeCardStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/banka.v1.BankaService/EmployeeChangeCardStatus", runtime.WithHTTPPathPattern("/bank/employee/cards/{card_number}/status"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_BankaService_EmployeeChangeCardStatus_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_EmployeeChangeCardStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_BankaService_GetAllAccounts_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/banka.v1.BankaService/GetAllAccounts", runtime.WithHTTPPathPattern("/bank/employee/accounts"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_BankaService_GetAllAccounts_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_GetAllAccounts_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_BankaService_GetAccountCards_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateIncomingContext(ctx, mux, req, "/banka.v1.BankaService/GetAccountCards", runtime.WithHTTPPathPattern("/bank/employee/accounts/{broj_racuna}/cards"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_BankaService_GetAccountCards_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_GetAccountCards_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 
 	return nil
 }
@@ -2092,67 +2271,124 @@ func RegisterBankaServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 		}
 		forward_BankaService_GetAllApprovedCredits_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 	})
+	mux.Handle(http.MethodPatch, pattern_BankaService_EmployeeChangeCardStatus_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/banka.v1.BankaService/EmployeeChangeCardStatus", runtime.WithHTTPPathPattern("/bank/employee/cards/{card_number}/status"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_BankaService_EmployeeChangeCardStatus_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_EmployeeChangeCardStatus_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_BankaService_GetAllAccounts_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/banka.v1.BankaService/GetAllAccounts", runtime.WithHTTPPathPattern("/bank/employee/accounts"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_BankaService_GetAllAccounts_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_GetAllAccounts_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
+	mux.Handle(http.MethodGet, pattern_BankaService_GetAccountCards_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		annotatedContext, err := runtime.AnnotateContext(ctx, mux, req, "/banka.v1.BankaService/GetAccountCards", runtime.WithHTTPPathPattern("/bank/employee/accounts/{broj_racuna}/cards"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_BankaService_GetAccountCards_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		forward_BankaService_GetAccountCards_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+	})
 	return nil
 }
 
 var (
-	pattern_BankaService_GetCurrencies_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "currencies"}, ""))
-	pattern_BankaService_GetDelatnosti_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "delatnosti"}, ""))
-	pattern_BankaService_CreateAccount_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "accounts"}, ""))
-	pattern_BankaService_GetClientAccounts_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "accounts"}, ""))
-	pattern_BankaService_GetAccountDetail_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "accounts", "id"}, ""))
-	pattern_BankaService_GetAccountTransactions_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "racun_id", "transactions"}, ""))
-	pattern_BankaService_RenameAccount_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "id", "name"}, ""))
-	pattern_BankaService_UpdateAccountLimit_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "id", "limit"}, ""))
-	pattern_BankaService_GetPendingAction_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"bank", "transactions", "id"}, ""))
-	pattern_BankaService_GetPendingActions_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "transactions", "pending"}, ""))
-	pattern_BankaService_ApprovePendingAction_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"bank", "transactions", "id", "approve"}, ""))
-	pattern_BankaService_VerifyLimitChange_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "pending-actions", "id", "verify"}, ""))
-	pattern_BankaService_GetPaymentRecipients_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payment-recipients"}, ""))
-	pattern_BankaService_CreatePaymentRecipient_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payment-recipients"}, ""))
-	pattern_BankaService_UpdatePaymentRecipient_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payment-recipients", "id"}, ""))
-	pattern_BankaService_DeletePaymentRecipient_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payment-recipients", "id"}, ""))
-	pattern_BankaService_CreatePaymentIntent_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payments"}, ""))
-	pattern_BankaService_CreateTransferIntent_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "transfers"}, ""))
-	pattern_BankaService_VerifyAndExecutePayment_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "payments", "intent_id", "verify"}, ""))
-	pattern_BankaService_GetPaymentHistory_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payments"}, ""))
-	pattern_BankaService_GetPaymentDetail_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payments", "id"}, ""))
-	pattern_BankaService_ApplyForCredit_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "client", "credits"}, ""))
-	pattern_BankaService_GetClientCredits_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "client", "credits"}, ""))
-	pattern_BankaService_GetCreditDetails_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "client", "credits", "id"}, ""))
-	pattern_BankaService_GetAllCreditRequests_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "employee", "credits", "requests"}, ""))
-	pattern_BankaService_ApproveCredit_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "employee", "credits", "requests", "id", "approve"}, ""))
-	pattern_BankaService_RejectCredit_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "employee", "credits", "requests", "id", "reject"}, ""))
-	pattern_BankaService_GetAllApprovedCredits_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "employee", "credits"}, ""))
+	pattern_BankaService_GetCurrencies_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "currencies"}, ""))
+	pattern_BankaService_GetDelatnosti_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "delatnosti"}, ""))
+	pattern_BankaService_CreateAccount_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1}, []string{"bank", "accounts"}, ""))
+	pattern_BankaService_GetClientAccounts_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "accounts"}, ""))
+	pattern_BankaService_GetAccountDetail_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "accounts", "id"}, ""))
+	pattern_BankaService_GetAccountTransactions_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "racun_id", "transactions"}, ""))
+	pattern_BankaService_RenameAccount_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "id", "name"}, ""))
+	pattern_BankaService_UpdateAccountLimit_0       = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "accounts", "id", "limit"}, ""))
+	pattern_BankaService_GetPendingAction_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"bank", "transactions", "id"}, ""))
+	pattern_BankaService_GetPendingActions_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "transactions", "pending"}, ""))
+	pattern_BankaService_ApprovePendingAction_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"bank", "transactions", "id", "approve"}, ""))
+	pattern_BankaService_VerifyLimitChange_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "pending-actions", "id", "verify"}, ""))
+	pattern_BankaService_GetPaymentRecipients_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payment-recipients"}, ""))
+	pattern_BankaService_CreatePaymentRecipient_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payment-recipients"}, ""))
+	pattern_BankaService_UpdatePaymentRecipient_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payment-recipients", "id"}, ""))
+	pattern_BankaService_DeletePaymentRecipient_0   = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payment-recipients", "id"}, ""))
+	pattern_BankaService_CreatePaymentIntent_0      = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payments"}, ""))
+	pattern_BankaService_CreateTransferIntent_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "transfers"}, ""))
+	pattern_BankaService_VerifyAndExecutePayment_0  = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "client", "payments", "intent_id", "verify"}, ""))
+	pattern_BankaService_GetPaymentHistory_0        = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "client", "payments"}, ""))
+	pattern_BankaService_GetPaymentDetail_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3}, []string{"bank", "client", "payments", "id"}, ""))
+	pattern_BankaService_ApplyForCredit_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "client", "credits"}, ""))
+	pattern_BankaService_GetClientCredits_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "client", "credits"}, ""))
+	pattern_BankaService_GetCreditDetails_0         = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 1, 0, 4, 1, 5, 4}, []string{"api", "v1", "client", "credits", "id"}, ""))
+	pattern_BankaService_GetAllCreditRequests_0     = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4}, []string{"api", "v1", "employee", "credits", "requests"}, ""))
+	pattern_BankaService_ApproveCredit_0            = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "employee", "credits", "requests", "id", "approve"}, ""))
+	pattern_BankaService_RejectCredit_0             = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3, 2, 4, 1, 0, 4, 1, 5, 5, 2, 6}, []string{"api", "v1", "employee", "credits", "requests", "id", "reject"}, ""))
+	pattern_BankaService_GetAllApprovedCredits_0    = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 2, 3}, []string{"api", "v1", "employee", "credits"}, ""))
+	pattern_BankaService_EmployeeChangeCardStatus_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "employee", "cards", "card_number", "status"}, ""))
+	pattern_BankaService_GetAllAccounts_0           = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"bank", "employee", "accounts"}, ""))
+	pattern_BankaService_GetAccountCards_0          = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2, 1, 0, 4, 1, 5, 3, 2, 4}, []string{"bank", "employee", "accounts", "broj_racuna", "cards"}, ""))
 )
 
 var (
-	forward_BankaService_GetCurrencies_0           = runtime.ForwardResponseMessage
-	forward_BankaService_GetDelatnosti_0           = runtime.ForwardResponseMessage
-	forward_BankaService_CreateAccount_0           = runtime.ForwardResponseMessage
-	forward_BankaService_GetClientAccounts_0       = runtime.ForwardResponseMessage
-	forward_BankaService_GetAccountDetail_0        = runtime.ForwardResponseMessage
-	forward_BankaService_GetAccountTransactions_0  = runtime.ForwardResponseMessage
-	forward_BankaService_RenameAccount_0           = runtime.ForwardResponseMessage
-	forward_BankaService_UpdateAccountLimit_0      = runtime.ForwardResponseMessage
-	forward_BankaService_GetPendingAction_0        = runtime.ForwardResponseMessage
-	forward_BankaService_GetPendingActions_0       = runtime.ForwardResponseMessage
-	forward_BankaService_ApprovePendingAction_0    = runtime.ForwardResponseMessage
-	forward_BankaService_VerifyLimitChange_0       = runtime.ForwardResponseMessage
-	forward_BankaService_GetPaymentRecipients_0    = runtime.ForwardResponseMessage
-	forward_BankaService_CreatePaymentRecipient_0  = runtime.ForwardResponseMessage
-	forward_BankaService_UpdatePaymentRecipient_0  = runtime.ForwardResponseMessage
-	forward_BankaService_DeletePaymentRecipient_0  = runtime.ForwardResponseMessage
-	forward_BankaService_CreatePaymentIntent_0     = runtime.ForwardResponseMessage
-	forward_BankaService_CreateTransferIntent_0    = runtime.ForwardResponseMessage
-	forward_BankaService_VerifyAndExecutePayment_0 = runtime.ForwardResponseMessage
-	forward_BankaService_GetPaymentHistory_0       = runtime.ForwardResponseMessage
-	forward_BankaService_GetPaymentDetail_0        = runtime.ForwardResponseMessage
-	forward_BankaService_ApplyForCredit_0          = runtime.ForwardResponseMessage
-	forward_BankaService_GetClientCredits_0        = runtime.ForwardResponseMessage
-	forward_BankaService_GetCreditDetails_0        = runtime.ForwardResponseMessage
-	forward_BankaService_GetAllCreditRequests_0    = runtime.ForwardResponseMessage
-	forward_BankaService_ApproveCredit_0           = runtime.ForwardResponseMessage
-	forward_BankaService_RejectCredit_0            = runtime.ForwardResponseMessage
-	forward_BankaService_GetAllApprovedCredits_0   = runtime.ForwardResponseMessage
+	forward_BankaService_GetCurrencies_0            = runtime.ForwardResponseMessage
+	forward_BankaService_GetDelatnosti_0            = runtime.ForwardResponseMessage
+	forward_BankaService_CreateAccount_0            = runtime.ForwardResponseMessage
+	forward_BankaService_GetClientAccounts_0        = runtime.ForwardResponseMessage
+	forward_BankaService_GetAccountDetail_0         = runtime.ForwardResponseMessage
+	forward_BankaService_GetAccountTransactions_0   = runtime.ForwardResponseMessage
+	forward_BankaService_RenameAccount_0            = runtime.ForwardResponseMessage
+	forward_BankaService_UpdateAccountLimit_0       = runtime.ForwardResponseMessage
+	forward_BankaService_GetPendingAction_0         = runtime.ForwardResponseMessage
+	forward_BankaService_GetPendingActions_0        = runtime.ForwardResponseMessage
+	forward_BankaService_ApprovePendingAction_0     = runtime.ForwardResponseMessage
+	forward_BankaService_VerifyLimitChange_0        = runtime.ForwardResponseMessage
+	forward_BankaService_GetPaymentRecipients_0     = runtime.ForwardResponseMessage
+	forward_BankaService_CreatePaymentRecipient_0   = runtime.ForwardResponseMessage
+	forward_BankaService_UpdatePaymentRecipient_0   = runtime.ForwardResponseMessage
+	forward_BankaService_DeletePaymentRecipient_0   = runtime.ForwardResponseMessage
+	forward_BankaService_CreatePaymentIntent_0      = runtime.ForwardResponseMessage
+	forward_BankaService_CreateTransferIntent_0     = runtime.ForwardResponseMessage
+	forward_BankaService_VerifyAndExecutePayment_0  = runtime.ForwardResponseMessage
+	forward_BankaService_GetPaymentHistory_0        = runtime.ForwardResponseMessage
+	forward_BankaService_GetPaymentDetail_0         = runtime.ForwardResponseMessage
+	forward_BankaService_ApplyForCredit_0           = runtime.ForwardResponseMessage
+	forward_BankaService_GetClientCredits_0         = runtime.ForwardResponseMessage
+	forward_BankaService_GetCreditDetails_0         = runtime.ForwardResponseMessage
+	forward_BankaService_GetAllCreditRequests_0     = runtime.ForwardResponseMessage
+	forward_BankaService_ApproveCredit_0            = runtime.ForwardResponseMessage
+	forward_BankaService_RejectCredit_0             = runtime.ForwardResponseMessage
+	forward_BankaService_GetAllApprovedCredits_0    = runtime.ForwardResponseMessage
+	forward_BankaService_EmployeeChangeCardStatus_0 = runtime.ForwardResponseMessage
+	forward_BankaService_GetAllAccounts_0           = runtime.ForwardResponseMessage
+	forward_BankaService_GetAccountCards_0          = runtime.ForwardResponseMessage
 )

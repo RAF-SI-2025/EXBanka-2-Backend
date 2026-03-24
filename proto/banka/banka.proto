@@ -439,6 +439,62 @@ message GetAllApprovedCreditsResponse {
 // GET /bank/exchange-rates?from=X&to=Y&amount=Z → konverzija (JSON: { result, bruto, ... })
 
 
+// ─── EmployeeChangeCardStatus ─────────────────────────────────────────────────
+
+// EmployeeChangeCardStatusRequest — promena statusa kartice od strane zaposlenog.
+// Dozvoljene akcije: AKTIVNA→BLOKIRANA, BLOKIRANA→AKTIVNA, */→DEAKTIVIRANA.
+message EmployeeChangeCardStatusRequest {
+  string card_number = 1;  // broj kartice (path param)
+  string status      = 2;  // "AKTIVNA" | "BLOKIRANA" | "DEAKTIVIRANA"
+}
+
+// ─── GetAllAccounts (Employee) ────────────────────────────────────────────────
+
+// GetAllAccountsRequest — opcionalni filteri za listu svih računa.
+// Prazno polje znači "bez filtera".
+message GetAllAccountsRequest {
+  string account_number = 1; // parcijalni match na broj_racuna (SQL ILIKE)
+  string first_name     = 2; // parcijalni match na ime vlasnika (in-memory, case-insensitive)
+  string last_name      = 3; // parcijalni match na prezime vlasnika (in-memory, case-insensitive)
+}
+
+// EmployeeAccountListItem je projekcija računa za zaposlene — sadrži podatke iz
+// bank-service baze i ime/prezime vlasnika dohvaćeno sinhronim pozivom ka user-service-u.
+message EmployeeAccountListItem {
+  int64  id                = 1;
+  string broj_racuna       = 2;
+  string vrsta_racuna      = 3;  // "LICNI" | "POSLOVNI"
+  string kategorija_racuna = 4;  // "TEKUCI" | "DEVIZNI"
+  int64  vlasnik_id        = 5;
+  string ime_vlasnika      = 6;
+  string prezime_vlasnika  = 7;
+}
+
+message GetAllAccountsResponse {
+  repeated EmployeeAccountListItem accounts = 1;
+}
+
+// ─── GetAccountCards (Employee) ───────────────────────────────────────────────
+
+message GetAccountCardsRequest {
+  string broj_racuna = 1;
+}
+
+// EmployeeKarticaListItem je projekcija kartice za portal zaposlenih.
+// Vlasnik je vlasnik računa (ne ovlašćeno lice), dohvaćen iz user-service-a.
+message EmployeeKarticaListItem {
+  int64  id               = 1;
+  string broj_kartice     = 2;
+  string status           = 3;  // "AKTIVNA" | "BLOKIRANA" | "DEAKTIVIRANA"
+  string ime_vlasnika     = 4;
+  string prezime_vlasnika = 5;
+  string email_vlasnika   = 6;
+}
+
+message GetAccountCardsResponse {
+  repeated EmployeeKarticaListItem kartice = 1;
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 service BankaService {
@@ -661,6 +717,33 @@ service BankaService {
   rpc GetAllApprovedCredits(GetAllApprovedCreditsRequest) returns (GetAllApprovedCreditsResponse) {
     option (google.api.http) = {
       get: "/api/v1/employee/credits"
+    };
+  }
+
+  // EmployeeChangeCardStatus — Employee only. Menja status kartice (blokada/deblokada/deaktivacija).
+  // Nakon uspešne promene šalje asinhronu email notifikaciju vlasniku, a za poslovne račune
+  // i ovlašćenom licu (email se čita iz lokalne baze, bez dodatnog poziva ka user-service-u).
+  rpc EmployeeChangeCardStatus(EmployeeChangeCardStatusRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      patch: "/bank/employee/cards/{card_number}/status"
+      body: "*"
+    };
+  }
+
+  // GetAllAccounts — Employee only. Vraća agregiranu listu svih računa klijenata,
+  // sortiranu abecedno po prezimenu vlasnika. Podržava filtere po broju računa,
+  // imenu i prezimenu vlasnika (prosleđuju se kao query parametri).
+  rpc GetAllAccounts(GetAllAccountsRequest) returns (GetAllAccountsResponse) {
+    option (google.api.http) = {
+      get: "/bank/employee/accounts"
+    };
+  }
+
+  // GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.
+  // Ime, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.
+  rpc GetAccountCards(GetAccountCardsRequest) returns (GetAccountCardsResponse) {
+    option (google.api.http) = {
+      get: "/bank/employee/accounts/{broj_racuna}/cards"
     };
   }
 }

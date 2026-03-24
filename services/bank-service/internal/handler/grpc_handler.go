@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	pb "banka-backend/proto/banka"
 	auth "banka-backend/shared/auth"
 	"banka-backend/services/bank-service/internal/domain"
+	"banka-backend/services/bank-service/internal/transport"
 	"banka-backend/services/bank-service/internal/worker"
 
 	"google.golang.org/grpc/codes"
@@ -19,7 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
-// clientEmailLookup apstrahuje gRPC poziv ka user-service radi dohvata emaila.
+// clientEmailLookup apstrahuje gRPC pozive ka user-service.
 // Omogućava testabilnost BankHandler-a bez pravog gRPC klijenta.
 type clientEmailLookup interface {
 	// GetClientEmail dohvata email klijenta po ID-u — zahteva EMPLOYEE JWT.
@@ -28,6 +30,10 @@ type clientEmailLookup interface {
 	// GetMyEmail dohvata email ulogovanog korisnika — radi sa bilo kojim JWT.
 	// Koristiti u direktnim HTTP handler-ima gde je token CLIENT-ov.
 	GetMyEmail(ctx context.Context) (string, error)
+	// GetClientName dohvata ime i prezime klijenta po ID-u — zahteva EMPLOYEE JWT.
+	GetClientName(ctx context.Context, clientID int64) (firstName, lastName string, err error)
+	// GetClientInfo dohvata ime, prezime i email klijenta u jednom pozivu — zahteva EMPLOYEE JWT.
+	GetClientInfo(ctx context.Context, clientID int64) (*transport.ClientInfo, error)
 }
 
 // BankHandler implementira pb.BankaServiceServer.
@@ -559,4 +565,206 @@ func pendingActionToPb(a domain.PendingAction) *pb.PendingActionItem {
 			Status:           a.Status,
 		}
 	}
+}
+
+// EmployeeChangeCardStatus — Employee only. Menja status kartice (blokada/deblokada/deaktivacija).
+// Nakon uspešne promene statusa u bazi, asinhrono šalje email notifikacije:
+//   - uvek vlasniku računa (email iz user-service-a)
+//   - za POSLOVNI račun + ovlašćeno lice: i ovlašćenom licu (email iz lokalne baze)
+//
+// Mapped to: PATCH /bank/employee/cards/{card_number}/status
+func (h *BankHandler) EmployeeChangeCardStatus(ctx context.Context, req *pb.EmployeeChangeCardStatusRequest) (*emptypb.Empty, error) {
+	claims, ok := auth.ClaimsFromContext(ctx)
+	if !ok || (claims.UserType != "EMPLOYEE" && claims.UserType != "ADMIN") {
+		return nil, status.Error(codes.PermissionDenied, "samo zaposleni mogu pristupiti ovom endpointu")
+	}
+
+	brojKartice := req.GetCardNumber()
+	noviStatus := req.GetStatus()
+
+	if brojKartice == "" {
+		return nil, status.Error(codes.InvalidArgument, "card_number je obavezan")
+	}
+	switch noviStatus {
+	case "AKTIVNA", "BLOKIRANA", "DEAKTIVIRANA":
+		// OK
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "status mora biti AKTIVNA, BLOKIRANA ili DEAKTIVIRANA")
+	}
+
+	kartica, err := h.karticaService.ChangeEmployeeCardStatus(ctx, brojKartice, noviStatus)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrKarticaNotFound):
+			return nil, status.Error(codes.NotFound, "kartica nije pronađena")
+		case errors.Is(err, domain.ErrKarticaVecAktivna),
+			errors.Is(err, domain.ErrKarticaVecBlokirana):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errors.Is(err, domain.ErrNedozvoljenaPromenaSatusa):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		default:
+			return nil, status.Errorf(codes.Internal, "greška pri promeni statusa: %v", err)
+		}
+	}
+
+	// Dohvati email vlasnika — reusing existing GetClientInfo (single gRPC call).
+	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ownerInfo, infoErr := h.userClient.GetClientInfo(callCtx, kartica.VlasnikID)
+	cancel()
+	if infoErr != nil {
+		log.Printf("[EmployeeChangeCardStatus] user-service poziv za vlasnik_id=%d nije uspeo: %v", kartica.VlasnikID, infoErr)
+	}
+
+	// Asinhrono pošalji notifikaciju vlasniku.
+	if infoErr == nil && ownerInfo.Email != "" {
+		if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+			Type:  worker.CardStatusChangedType,
+			Email: ownerInfo.Email,
+			Token: noviStatus,
+		}); pubErr != nil {
+			log.Printf("[EmployeeChangeCardStatus] RabbitMQ publish za vlasnika nije uspeo: %v", pubErr)
+		}
+	}
+
+	// Za poslovne račune sa ovlašćenim licem — email je u lokalnoj bazi, bez user-service poziva.
+	if kartica.VrstaRacuna == "POSLOVNI" && kartica.OvlascenoLice != nil && kartica.OvlascenoLice.EmailAdresa != "" {
+		if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+			Type:  worker.CardStatusChangedType,
+			Email: kartica.OvlascenoLice.EmailAdresa,
+			Token: noviStatus,
+		}); pubErr != nil {
+			log.Printf("[EmployeeChangeCardStatus] RabbitMQ publish za ovlašćeno lice nije uspeo: %v", pubErr)
+		}
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// GetAllAccounts — Employee only. Vraća agregiranu listu svih računa klijenata,
+// sortiranu abecedno po prezimenu vlasnika. Podržava filtere:
+//   - account_number: parcijalni match u bazi (ILIKE)
+//   - first_name, last_name: in-memory filteri nakon dohvata imena iz user-service-a
+//
+// Mapped to: GET /bank/employee/accounts
+func (h *BankHandler) GetAllAccounts(ctx context.Context, req *pb.GetAllAccountsRequest) (*pb.GetAllAccountsResponse, error) {
+	claims, ok := auth.ClaimsFromContext(ctx)
+	if !ok || (claims.UserType != "EMPLOYEE" && claims.UserType != "ADMIN") {
+		return nil, status.Error(codes.PermissionDenied, "samo zaposleni mogu pristupiti ovom endpointu")
+	}
+
+	// Broj računa filter se primenjuje na nivou SQL upita.
+	accounts, err := h.accountService.GetAllAccounts(ctx, req.GetAccountNumber())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "greška pri dohvatu računa: %v", err)
+	}
+
+	// Dedupliciraj owner ID-jeve da bismo minimizovali broj poziva ka user-service-u.
+	ownerIDs := make(map[int64]struct{}, len(accounts))
+	for _, a := range accounts {
+		ownerIDs[a.VlasnikID] = struct{}{}
+	}
+
+	// Sinhroni pozivi ka user-service-u, jedan po vlasniku.
+	type ownerName struct {
+		ime     string
+		prezime string
+	}
+	names := make(map[int64]ownerName, len(ownerIDs))
+	for id := range ownerIDs {
+		callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		ime, prezime, nameErr := h.userClient.GetClientName(callCtx, id)
+		cancel()
+		if nameErr != nil {
+			log.Printf("[GetAllAccounts] user-service poziv za vlasnik_id=%d nije uspeo: %v", id, nameErr)
+			names[id] = ownerName{}
+			continue
+		}
+		names[id] = ownerName{ime: ime, prezime: prezime}
+	}
+
+	// Primeni in-memory filtere po imenu i prezimenu (case-insensitive parcijalni match).
+	firstNameFilter := strings.ToLower(req.GetFirstName())
+	lastNameFilter := strings.ToLower(req.GetLastName())
+
+	pbAccounts := make([]*pb.EmployeeAccountListItem, 0, len(accounts))
+	for _, a := range accounts {
+		n := names[a.VlasnikID]
+
+		if firstNameFilter != "" && !strings.Contains(strings.ToLower(n.ime), firstNameFilter) {
+			continue
+		}
+		if lastNameFilter != "" && !strings.Contains(strings.ToLower(n.prezime), lastNameFilter) {
+			continue
+		}
+
+		pbAccounts = append(pbAccounts, &pb.EmployeeAccountListItem{
+			Id:               a.ID,
+			BrojRacuna:       a.BrojRacuna,
+			VrstaRacuna:      a.VrstaRacuna,
+			KategorijaRacuna: a.KategorijaRacuna,
+			VlasnikId:        a.VlasnikID,
+			ImeVlasnika:      n.ime,
+			PrezimeVlasnika:  n.prezime,
+		})
+	}
+
+	// Sortiraj abecedno po prezimenu, pa po imenu kao tiebreaker.
+	sort.Slice(pbAccounts, func(i, j int) bool {
+		pi, pj := pbAccounts[i].GetPrezimeVlasnika(), pbAccounts[j].GetPrezimeVlasnika()
+		if pi != pj {
+			return pi < pj
+		}
+		return pbAccounts[i].GetImeVlasnika() < pbAccounts[j].GetImeVlasnika()
+	})
+
+	return &pb.GetAllAccountsResponse{Accounts: pbAccounts}, nil
+}
+
+// GetAccountCards — Employee only. Vraća sve kartice vezane za dati broj računa.
+// Ime, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.
+// Mapped to: GET /bank/employee/accounts/{broj_racuna}/cards
+func (h *BankHandler) GetAccountCards(ctx context.Context, req *pb.GetAccountCardsRequest) (*pb.GetAccountCardsResponse, error) {
+	claims, ok := auth.ClaimsFromContext(ctx)
+	if !ok || (claims.UserType != "EMPLOYEE" && claims.UserType != "ADMIN") {
+		return nil, status.Error(codes.PermissionDenied, "samo zaposleni mogu pristupiti ovom endpointu")
+	}
+
+	brojRacuna := req.GetBrojRacuna()
+	if brojRacuna == "" {
+		return nil, status.Error(codes.InvalidArgument, "broj_racuna je obavezan")
+	}
+
+	kartice, err := h.karticaService.GetKarticeZaPortalZaposlenih(ctx, brojRacuna)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "greška pri dohvatu kartica: %v", err)
+	}
+
+	if len(kartice) == 0 {
+		return &pb.GetAccountCardsResponse{Kartice: []*pb.EmployeeKarticaListItem{}}, nil
+	}
+
+	// Sve kartice na istom računu imaju istog vlasnika — jedan poziv ka user-service-u.
+	vlasnikID := kartice[0].VlasnikID
+	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	info, err := h.userClient.GetClientInfo(callCtx, vlasnikID)
+	cancel()
+	if err != nil {
+		log.Printf("[GetAccountCards] user-service poziv za vlasnik_id=%d nije uspeo: %v", vlasnikID, err)
+		// Nastavi sa praznim podacima o vlasniku.
+		info = &transport.ClientInfo{}
+	}
+
+	pbKartice := make([]*pb.EmployeeKarticaListItem, 0, len(kartice))
+	for _, k := range kartice {
+		pbKartice = append(pbKartice, &pb.EmployeeKarticaListItem{
+			Id:              k.ID,
+			BrojKartice:     k.BrojKartice,
+			Status:          k.Status,
+			ImeVlasnika:     info.FirstName,
+			PrezimeVlasnika: info.LastName,
+			EmailVlasnika:   info.Email,
+		})
+	}
+
+	return &pb.GetAccountCardsResponse{Kartice: pbKartice}, nil
 }

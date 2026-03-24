@@ -485,6 +485,52 @@ func (s *karticaService) GetMojeKartice(ctx context.Context, korisnikID int64) (
 	return s.repo.GetKarticeKorisnika(ctx, korisnikID)
 }
 
+func (s *karticaService) GetKarticeZaPortalZaposlenih(ctx context.Context, brojRacuna string) ([]domain.KarticaEmployeeRow, error) {
+	return s.repo.GetKarticeZaRacunBroj(ctx, brojRacuna)
+}
+
+// ChangeEmployeeCardStatus menja status kartice od strane zaposlenog.
+// Dozvoljene tranzicije:
+//   - AKTIVNA   → BLOKIRANA
+//   - AKTIVNA   → DEAKTIVIRANA
+//   - BLOKIRANA → AKTIVNA     (deblokada — samo zaposleni)
+//   - BLOKIRANA → DEAKTIVIRANA
+//   - DEAKTIVIRANA → *         (zabranjeno — trajna promena)
+//
+// Vraća podatke o kartici potrebne za slanje email notifikacija.
+func (s *karticaService) ChangeEmployeeCardStatus(ctx context.Context, brojKartice, noviStatus string) (*domain.KarticaZaStatusChange, error) {
+	kartica, err := s.repo.GetKarticaZaStatusChange(ctx, brojKartice)
+	if err != nil {
+		return nil, err
+	}
+
+	switch kartica.TrenutniStatus {
+	case "DEAKTIVIRANA":
+		return nil, domain.ErrNedozvoljenaPromenaSatusa
+	case "AKTIVNA":
+		if noviStatus == "AKTIVNA" {
+			return nil, domain.ErrKarticaVecAktivna
+		}
+		if noviStatus != "BLOKIRANA" && noviStatus != "DEAKTIVIRANA" {
+			return nil, domain.ErrNedozvoljenaPromenaSatusa
+		}
+	case "BLOKIRANA":
+		if noviStatus == "BLOKIRANA" {
+			return nil, domain.ErrKarticaVecBlokirana
+		}
+		if noviStatus != "AKTIVNA" && noviStatus != "DEAKTIVIRANA" {
+			return nil, domain.ErrNedozvoljenaPromenaSatusa
+		}
+	default:
+		return nil, domain.ErrNedozvoljenaPromenaSatusa
+	}
+
+	if err := s.repo.SetKarticaStatus(ctx, kartica.ID, noviStatus); err != nil {
+		return nil, err
+	}
+	return kartica, nil
+}
+
 // BlokirajKarticu blokira karticu ako vlasništvo i status to dozvoljavaju.
 //
 // Dozvoljeni prelaz: AKTIVNA → BLOKIRANA.

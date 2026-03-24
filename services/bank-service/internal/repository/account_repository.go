@@ -242,6 +242,58 @@ type accountListRow struct {
 	RezervovanaSredstva float64 `gorm:"column:rezervisana_sredstva"`
 }
 
+// allAccountsRow je projekcija za listu svih računa (portal zaposlenih).
+type allAccountsRow struct {
+	ID               int64  `gorm:"column:id"`
+	BrojRacuna       string `gorm:"column:broj_racuna"`
+	VrstaRacuna      string `gorm:"column:vrsta_racuna"`
+	KategorijaRacuna string `gorm:"column:kategorija_racuna"`
+	IDVlasnika       int64  `gorm:"column:id_vlasnika"`
+}
+
+// GetAllAccounts vraća sve aktivne račune — bez filtera po vlasniku.
+// brojRacunaFilter je opcioni parcijalni match (ILIKE); "" = bez filtera.
+// Ime i prezime vlasnika se ne dohvataju ovde; popunjava ih handler sloj
+// sinhronim pozivom ka user-service-u.
+func (r *accountRepository) GetAllAccounts(ctx context.Context, brojRacunaFilter string) ([]domain.EmployeeAccountListItem, error) {
+	var rows []allAccountsRow
+
+	query := `
+		SELECT
+			ra.id,
+			ra.broj_racuna,
+			ra.vrsta_racuna,
+			ra.kategorija_racuna,
+			ra.id_vlasnika
+		FROM core_banking.racun ra
+		WHERE ra.status = 'AKTIVAN'
+	`
+
+	var err error
+	if brojRacunaFilter != "" {
+		query += " AND ra.broj_racuna ILIKE ?"
+		err = r.db.WithContext(ctx).Raw(query, "%"+brojRacunaFilter+"%").Scan(&rows).Error
+	} else {
+		err = r.db.WithContext(ctx).Raw(query).Scan(&rows).Error
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	items := make([]domain.EmployeeAccountListItem, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domain.EmployeeAccountListItem{
+			ID:               row.ID,
+			BrojRacuna:       row.BrojRacuna,
+			VrstaRacuna:      row.VrstaRacuna,
+			KategorijaRacuna: row.KategorijaRacuna,
+			VlasnikID:        row.IDVlasnika,
+		})
+	}
+	return items, nil
+}
+
 // GetClientAccounts vraća aktivne račune klijenta sortirane po raspoloživom stanju DESC.
 func (r *accountRepository) GetClientAccounts(ctx context.Context, vlasnikID int64) ([]domain.AccountListItem, error) {
 	var rows []accountListRow

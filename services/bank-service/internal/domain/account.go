@@ -103,6 +103,18 @@ type AccountListItem struct {
 	RaspolozivoStanje   float64
 }
 
+// EmployeeAccountListItem je projekcija računa za portal zaposlenih.
+// Sadrži podatke iz bank-service baze i ime/prezime vlasnika iz user-service-a.
+type EmployeeAccountListItem struct {
+	ID               int64
+	BrojRacuna       string
+	VrstaRacuna      string // "LICNI" | "POSLOVNI"
+	KategorijaRacuna string // "TEKUCI" | "DEVIZNI"
+	VlasnikID        int64
+	ImeVlasnika      string
+	PrezimeVlasnika  string
+}
+
 // AccountDetail je detaljna projekcija jednog računa.
 type AccountDetail struct {
 	ID                  int64
@@ -185,6 +197,11 @@ type AccountRepository interface {
 	// Vraća surogat PK (racun.id) novokreiranog računa.
 	CreateAccount(ctx context.Context, input CreateAccountInput, brojRacuna string) (int64, error)
 
+	// GetAllAccounts vraća sve aktivne račune svih klijenata (za portal zaposlenih).
+	// BrojRacunaFilter je opcioni parcijalni match (ILIKE); "" = bez filtera.
+	// Ime/prezime se popunjava naknadno u handler sloju.
+	GetAllAccounts(ctx context.Context, brojRacunaFilter string) ([]EmployeeAccountListItem, error)
+
 	// GetClientAccounts vraća aktivne račune klijenta sortirane po raspoloživom stanju DESC.
 	GetClientAccounts(ctx context.Context, vlasnikID int64) ([]AccountListItem, error)
 
@@ -218,6 +235,7 @@ type AccountRepository interface {
 // AccountService definiše ugovor prema sloju poslovne logike.
 type AccountService interface {
 	CreateAccount(ctx context.Context, input CreateAccountInput) (int64, error)
+	GetAllAccounts(ctx context.Context, brojRacunaFilter string) ([]EmployeeAccountListItem, error)
 	GetClientAccounts(ctx context.Context, vlasnikID int64) ([]AccountListItem, error)
 	GetAccountDetail(ctx context.Context, accountID, vlasnikID int64) (*AccountDetail, error)
 	GetAccountTransactions(ctx context.Context, input GetAccountTransactionsInput, vlasnikID int64) ([]Transakcija, error)

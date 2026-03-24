@@ -32,6 +32,9 @@ var accountCreatedTmpl string
 //go:embed templates/card_otp.html
 var cardOTPTmpl string
 
+//go:embed templates/card_status_changed.html
+var cardStatusChangedTmpl string
+
 // emailTmplEntry holds a pre-parsed template and its email subject line.
 type emailTmplEntry struct {
 	subject string
@@ -63,6 +66,7 @@ func NewEmailService(cfg *config.Config, sender smtp.Sender) *EmailService {
 			"PASSWORD_RESET_SUCCESS": {subject: "Security Alert: Your EXBanka2 Password Has Been Changed", tmpl: must("password_reset_success", passwordResetSuccessTmpl)},
 			"ACCOUNT_CREATED":        {subject: "Your EXBanka2 Account Has Been Created", tmpl: must("account_created", accountCreatedTmpl)},
 			"CARD_OTP":               {subject: "EXBanka2 \u2014 Card Verification Code", tmpl: must("card_otp", cardOTPTmpl)},
+			"CARD_STATUS_CHANGED":    {subject: "EXBanka2 \u2014 Card Status Update", tmpl: must("card_status_changed", cardStatusChangedTmpl)},
 		},
 	}
 }

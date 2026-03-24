@@ -69,6 +69,10 @@ func (s *accountService) CreateAccount(ctx context.Context, input domain.CreateA
 	return s.repo.CreateAccount(ctx, input, brojRacuna)
 }
 
+func (s *accountService) GetAllAccounts(ctx context.Context, brojRacunaFilter string) ([]domain.EmployeeAccountListItem, error) {
+	return s.repo.GetAllAccounts(ctx, brojRacunaFilter)
+}
+
 func (s *accountService) GetClientAccounts(ctx context.Context, vlasnikID int64) ([]domain.AccountListItem, error) {
 	return s.repo.GetClientAccounts(ctx, vlasnikID)
 }
