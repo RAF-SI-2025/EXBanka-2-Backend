@@ -245,11 +245,12 @@ func (r *paymentRepository) CreateIntent(ctx context.Context, input domain.Creat
 		return nil, 0, domain.ErrMonthlyLimitExceeded
 	}
 
-	// Provjeri da li postoji primalački račun (interni).
+	// Provjeri da li postoji primalački račun (interni), uključujući valutu.
 	var recipientAccount racunForPayment
 	err = r.db.WithContext(ctx).Raw(`
-		SELECT ra.id, ra.broj_racuna, ra.status
+		SELECT ra.id, ra.broj_racuna, ra.status, v.oznaka AS valuta_oznaka
 		FROM core_banking.racun ra
+		JOIN core_banking.valuta v ON v.id = ra.id_valute
 		WHERE ra.broj_racuna = ? AND ra.status = 'AKTIVAN'
 		LIMIT 1
 	`, input.BrojRacunaPrimaoca).Scan(&recipientAccount).Error
@@ -265,6 +266,15 @@ func (r *paymentRepository) CreateIntent(ctx context.Context, input domain.Creat
 	if recipientAccount.ID != 0 {
 		id := recipientAccount.ID
 		recipientID = &id
+	}
+
+	// Izračunaj krajnji iznos za cross-currency interne prenose.
+	var krajnjiIznosPreview *float64
+	if recipientAccount.ID != 0 &&
+		recipientAccount.ValutaOznaka != "" &&
+		payerAccount.ValutaOznaka != recipientAccount.ValutaOznaka {
+		converted := convertPaymentAmount(payerAccount.ValutaOznaka, recipientAccount.ValutaOznaka, input.Iznos)
+		krajnjiIznosPreview = &converted
 	}
 
 	var actionID int64
@@ -296,6 +306,7 @@ func (r *paymentRepository) CreateIntent(ctx context.Context, input domain.Creat
 			BrojRacunaPrimaoca: input.BrojRacunaPrimaoca,
 			NazivPrimaoca:      input.NazivPrimaoca,
 			Iznos:              input.Iznos,
+			KrajnjiIznos:       krajnjiIznosPreview,
 			Provizija:          0,
 			Valuta:             payerAccount.ValutaOznaka,
 			SifraPlacanja:      input.SifraPlacanja,
@@ -464,6 +475,9 @@ func (r *paymentRepository) CreateTransferIntent(ctx context.Context, input doma
 // Koristi SELECT FOR UPDATE u determinističkom redosledu da spreči deadlock.
 func (r *paymentRepository) VerifyAndExecute(ctx context.Context, input domain.VerifyPaymentInput) (*domain.PaymentIntent, error) {
 	var finalIntent *domain.PaymentIntent
+	// failureErr čuva grešku koja treba biti vraćena korisniku, ali čiji
+	// prateći DB update mora biti COMMIT-ovan (ne rollback-ovan).
+	var failureErr error
 
 	txErr := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 1. Lock intent reda za čitanje (FOR UPDATE).
@@ -521,10 +535,12 @@ func (r *paymentRepository) VerifyAndExecute(ctx context.Context, input domain.V
 				Update("status", "CANCELLED").Error
 			_ = tx.Model(&paymentIntentModel{}).Where("id = ?", intent.ID).
 				Updates(map[string]interface{}{
-					"status":       "ODBIJENO",
+					"status":        "ODBIJENO",
 					"failed_reason": "Verifikacioni kod je istekao",
 				}).Error
-			return domain.ErrCodeExpired
+			// Postavljamo failureErr i vraćamo nil da bi GORM commit-ovao update-e.
+			failureErr = domain.ErrCodeExpired
+			return nil
 		}
 
 		// 6. Proveri kod.
@@ -535,15 +551,16 @@ func (r *paymentRepository) VerifyAndExecute(ctx context.Context, input domain.V
 				update["status"] = "CANCELLED"
 				_ = tx.Model(&paymentIntentModel{}).Where("id = ?", intent.ID).
 					Updates(map[string]interface{}{
-						"status":       "ODBIJENO",
+						"status":        "ODBIJENO",
 						"failed_reason": "Previše neuspešnih pokušaja",
 					}).Error
+				failureErr = domain.ErrTooManyAttempts
+			} else {
+				failureErr = domain.ErrWrongCode
 			}
 			_ = tx.Model(&pendingActionModel{}).Where("id = ?", action.ID).Updates(update).Error
-			if newAttempts >= 3 {
-				return domain.ErrTooManyAttempts
-			}
-			return domain.ErrWrongCode
+			// Vraćamo nil da bi GORM commit-ovao update-e pre nego što podignemo grešku.
+			return nil
 		}
 
 		// 7. Dohvati i zaključaj račune u determinističkom redosledu (sprečava deadlock).
@@ -686,6 +703,9 @@ func (r *paymentRepository) VerifyAndExecute(ctx context.Context, input domain.V
 	if txErr != nil {
 		return nil, txErr
 	}
+	if failureErr != nil {
+		return nil, failureErr
+	}
 	return finalIntent, nil
 }
 
@@ -779,4 +799,46 @@ func intentToDomain(m paymentIntentModel) *domain.PaymentIntent {
 func generateBrojNaloga() string {
 	n, _ := rand.Int(rand.Reader, big.NewInt(999_999_999))
 	return fmt.Sprintf("NAL%011d", n.Int64()+1)
+}
+
+// paymentFallbackRates su aproximativni srednji kursevi (RSD za 1 jedinicu strane valute).
+// Koriste se za konverziju iznosa pri plaćanjima između računa različitih valuta.
+var paymentFallbackRates = map[string]float64{
+	"EUR": 117.00,
+	"CHF": 126.75,
+	"USD": 107.75,
+	"GBP": 136.75,
+	"JPY":   0.69,
+	"CAD":  75.50,
+	"AUD":  68.50,
+}
+
+// convertPaymentAmount konvertuje iznos iz fromCurrency u toCurrency koristeći srednje kurseve.
+func convertPaymentAmount(fromCurrency, toCurrency string, amount float64) float64 {
+	if fromCurrency == toCurrency {
+		return amount
+	}
+	if fromCurrency == "RSD" {
+		// RSD → strani: amount / kurs_strane
+		toRate, ok := paymentFallbackRates[toCurrency]
+		if !ok || toRate == 0 {
+			return amount
+		}
+		return amount / toRate
+	}
+	if toCurrency == "RSD" {
+		// strani → RSD: amount * kurs_od
+		fromRate, ok := paymentFallbackRates[fromCurrency]
+		if !ok {
+			return amount
+		}
+		return amount * fromRate
+	}
+	// Kros-valutna konverzija: fromCurrency → RSD → toCurrency
+	fromRate, fromOK := paymentFallbackRates[fromCurrency]
+	toRate, toOK := paymentFallbackRates[toCurrency]
+	if !fromOK || !toOK || toRate == 0 {
+		return amount
+	}
+	return amount * fromRate / toRate
 }

@@ -258,4 +258,9 @@ type KreditService interface {
 	ApproveCredit(ctx context.Context, zahtevID int64) (*Kredit, error)
 	RejectCredit(ctx context.Context, zahtevID int64) error
 	GetAllApprovedCredits(ctx context.Context, filter GetAllCreditsFilter) ([]Kredit, error)
+
+	// ProcessFirstInstallment pokušava naplatu prve rate odmah po odobravanju kredita.
+	// Vraća insufficientFunds=true ako nema sredstava (rata markirana KASNI, retry za 72h).
+	// Vraća insufficientFunds=false i err=nil ako je naplata uspela ili je rata već plaćena.
+	ProcessFirstInstallment(ctx context.Context, kreditID int64) (insufficientFunds bool, nextRetry time.Time, err error)
 }

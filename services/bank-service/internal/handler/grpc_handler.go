@@ -202,6 +202,15 @@ func (h *BankHandler) CreateAccount(ctx context.Context, req *pb.CreateAccountRe
 			default:
 				log.Printf("[create-account] UPOZORENJE: račun kreiran (id=%d) ali kreiranje kartice nije uspelo: %v", id, karticaErr)
 			}
+		} else if email != "" {
+			// Kartica uspešno kreirana — pošaljemo KREIRANA_KARTICA email.
+			if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+				Type:  worker.CardCreatedType,
+				Email: email,
+				Token: "",
+			}); pubErr != nil {
+				log.Printf("[create-account] UPOZORENJE: kartica kreirana (racun=%d) ali KREIRANA_KARTICA email nije poslat: %v", id, pubErr)
+			}
 		}
 	}
 

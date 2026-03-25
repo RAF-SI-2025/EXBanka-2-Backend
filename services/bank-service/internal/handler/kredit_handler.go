@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
 	pb "banka-backend/proto/banka"
 	auth "banka-backend/shared/auth"
 	"banka-backend/services/bank-service/internal/domain"
+	"banka-backend/services/bank-service/internal/worker"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -146,6 +148,17 @@ func (h *BankHandler) ApplyForCredit(
 		return nil, status.Errorf(codes.InvalidArgument, "greška pri podnošenju zahteva: %v", err)
 	}
 
+	// Pošalji email potvrdu da je zahtev primljen (fire-and-forget).
+	if email, mailErr := h.userClient.GetMyEmail(ctx); mailErr == nil && email != "" {
+		if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+			Type:  worker.KreditPodnetType,
+			Email: email,
+			Token: "",
+		}); pubErr != nil {
+			log.Printf("[apply-credit] UPOZORENJE: zahtev kreiran (id=%d) ali KREDIT_PODNET email nije poslat: %v", zahtev.ID, pubErr)
+		}
+	}
+
 	return &pb.ApplyForCreditResponse{
 		Id:             zahtev.ID,
 		Status:         zahtev.Status,
@@ -262,6 +275,24 @@ func (h *BankHandler) ApproveCredit(
 			return nil, status.Error(codes.FailedPrecondition, "zahtev je već obrađen")
 		default:
 			return nil, status.Errorf(codes.Internal, "greška pri odobravanju kredita: %v", err)
+		}
+	}
+
+	// Pokušaj naplatu prve rate odmah po odobravanju (fire-and-forget za email).
+	insufficientFunds, _, installErr := h.kreditService.ProcessFirstInstallment(ctx, kredit.ID)
+	if installErr != nil {
+		log.Printf("[approve-credit] UPOZORENJE: kredit odobren (id=%d) ali naplata prve rate nije uspela: %v", kredit.ID, installErr)
+	}
+	if insufficientFunds {
+		// Nema dovoljno sredstava — pošalji upozorenje klijentu emailom.
+		if email, mailErr := h.userClient.GetClientEmail(ctx, kredit.VlasnikID); mailErr == nil && email != "" {
+			if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+				Type:  worker.KreditRataUpozorenjeType,
+				Email: email,
+				Token: "",
+			}); pubErr != nil {
+				log.Printf("[approve-credit] UPOZORENJE: kredit odobren (id=%d) ali KREDIT_RATA_UPOZORENJE email nije poslat: %v", kredit.ID, pubErr)
+			}
 		}
 	}
 

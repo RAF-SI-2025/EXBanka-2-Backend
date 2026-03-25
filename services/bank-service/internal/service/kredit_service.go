@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -226,6 +227,54 @@ func (s *kreditService) ApproveCredit(
 		kredit.ID, kredit.BrojKredita, kredit.VlasnikID)
 
 	return kredit, nil
+}
+
+// ProcessFirstInstallment pokušava da naplati prvu ratu odmah po odobravanju kredita.
+// Ako nema dovoljno sredstava, rata se markira KASNI sa retry za 72h.
+func (s *kreditService) ProcessFirstInstallment(
+	ctx context.Context,
+	kreditID int64,
+) (insufficientFunds bool, nextRetry time.Time, err error) {
+	rate, err := s.repo.GetInstallmentsByKredit(ctx, kreditID)
+	if err != nil {
+		return false, time.Time{}, fmt.Errorf("dohvat rata kredita %d: %w", kreditID, err)
+	}
+	if len(rate) == 0 {
+		return false, time.Time{}, nil
+	}
+
+	prva := rate[0] // sortirano ASC po datumu — prva rata je najranija
+	kredit, err := s.repo.GetKreditByID(ctx, kreditID)
+	if err != nil {
+		return false, time.Time{}, fmt.Errorf("dohvat kredita %d: %w", kreditID, err)
+	}
+
+	input := domain.ProcessInstallmentInput{
+		RataID:     prva.ID,
+		KreditID:   kreditID,
+		BrojRacuna: kredit.BrojRacuna,
+		IznosRate:  prva.IznosRate,
+		Valuta:     prva.Valuta,
+	}
+
+	payErr := s.repo.ProcessInstallmentPayment(ctx, input)
+	switch {
+	case payErr == nil:
+		log.Printf("[kredit] prva rata ID=%d kredita %d naplaćena odmah pri odobravanju", prva.ID, kreditID)
+		return false, time.Time{}, nil
+	case errors.Is(payErr, domain.ErrRataVecPlacena):
+		return false, time.Time{}, nil
+	case errors.Is(payErr, domain.ErrInsufficientFunds):
+		retry := time.Now().UTC().Add(72 * time.Hour)
+		if markErr := s.repo.MarkInstallmentFailed(ctx, prva.ID, retry); markErr != nil {
+			log.Printf("[kredit] GREŠKA: markiranje rate %d kao KASNI: %v", prva.ID, markErr)
+		}
+		log.Printf("[kredit] prva rata ID=%d kredita %d nije naplaćena — nema sredstava, retry=%s",
+			prva.ID, kreditID, retry.Format("2006-01-02 15:04"))
+		return true, retry, nil
+	default:
+		return false, time.Time{}, payErr
+	}
 }
 
 // RejectCredit odbija zahtev za kredit.

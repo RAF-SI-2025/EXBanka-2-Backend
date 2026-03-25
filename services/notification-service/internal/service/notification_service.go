@@ -35,6 +35,15 @@ var cardOTPTmpl string
 //go:embed templates/card_status_changed.html
 var cardStatusChangedTmpl string
 
+//go:embed templates/card_created.html
+var cardCreatedTmpl string
+
+//go:embed templates/kredit_podnet.html
+var kreditPodnetTmpl string
+
+//go:embed templates/kredit_rata_upozorenje.html
+var kreditRataUpozorenjeTmpl string
+
 // emailTmplEntry holds a pre-parsed template and its email subject line.
 type emailTmplEntry struct {
 	subject string
@@ -67,6 +76,9 @@ func NewEmailService(cfg *config.Config, sender smtp.Sender) *EmailService {
 			"ACCOUNT_CREATED":        {subject: "Your EXBanka2 Account Has Been Created", tmpl: must("account_created", accountCreatedTmpl)},
 			"CARD_OTP":               {subject: "EXBanka2 \u2014 Card Verification Code", tmpl: must("card_otp", cardOTPTmpl)},
 			"CARD_STATUS_CHANGED":    {subject: "EXBanka2 \u2014 Card Status Update", tmpl: must("card_status_changed", cardStatusChangedTmpl)},
+			"KREIRANA_KARTICA":          {subject: "EXBanka2 \u2014 Nova platna kartica kreirana", tmpl: must("card_created", cardCreatedTmpl)},
+			"KREDIT_PODNET":             {subject: "EXBanka2 \u2014 Zahtev za kredit primljen", tmpl: must("kredit_podnet", kreditPodnetTmpl)},
+			"KREDIT_RATA_UPOZORENJE":    {subject: "EXBanka2 \u2014 Upozorenje o naplati rate kredita", tmpl: must("kredit_rata_upozorenje", kreditRataUpozorenjeTmpl)},
 		},
 	}
 }

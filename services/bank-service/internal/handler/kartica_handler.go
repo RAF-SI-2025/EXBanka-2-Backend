@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,15 +23,17 @@ import (
 
 	auth "banka-backend/shared/auth"
 	"banka-backend/services/bank-service/internal/domain"
+	"banka-backend/services/bank-service/internal/worker"
 
 	"google.golang.org/grpc/metadata"
 )
 
 // KarticaRequestHandler obrađuje POST /api/cards/request.
 type KarticaRequestHandler struct {
-	karticaService domain.KarticaService
-	userClient     clientEmailLookup // isti interfejs koji koristi BankHandler
-	jwtSecret      string
+	karticaService   domain.KarticaService
+	userClient       clientEmailLookup // isti interfejs koji koristi BankHandler
+	jwtSecret        string
+	accountPublisher worker.AccountEmailPublisher
 }
 
 // NewKarticaRequestHandler kreira novi handler.
@@ -38,11 +41,13 @@ func NewKarticaRequestHandler(
 	karticaService domain.KarticaService,
 	userClient clientEmailLookup,
 	jwtSecret string,
+	accountPublisher worker.AccountEmailPublisher,
 ) *KarticaRequestHandler {
 	return &KarticaRequestHandler{
-		karticaService: karticaService,
-		userClient:     userClient,
-		jwtSecret:      jwtSecret,
+		karticaService:   karticaService,
+		userClient:       userClient,
+		jwtSecret:        jwtSecret,
+		accountPublisher: accountPublisher,
 	}
 }
 
@@ -241,6 +246,23 @@ func (h *KarticaRequestHandler) handleConfirm(w http.ResponseWriter, r *http.Req
 			writeKarticaJSON(w, http.StatusInternalServerError, map[string]string{"error": "interna greška servera"})
 		}
 		return
+	}
+
+	// Pošalji email notifikaciju o kreiranoj kartici (fire-and-forget).
+	emailCtx, emailCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer emailCancel()
+	emailCtx = metadata.NewOutgoingContext(
+		emailCtx,
+		metadata.Pairs("authorization", r.Header.Get("Authorization")),
+	)
+	if email, mailErr := h.userClient.GetMyEmail(emailCtx); mailErr == nil && email != "" {
+		if pubErr := h.accountPublisher.Publish(worker.AccountEmailEvent{
+			Type:  worker.CardCreatedType,
+			Email: email,
+			Token: "",
+		}); pubErr != nil {
+			log.Printf("[confirm-kartica] UPOZORENJE: kartica kreirana (id=%d) ali KREIRANA_KARTICA email nije poslat: %v", karticaID, pubErr)
+		}
 	}
 
 	writeKarticaJSON(w, http.StatusCreated, map[string]any{
