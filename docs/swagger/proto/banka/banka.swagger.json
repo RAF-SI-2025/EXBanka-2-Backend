@@ -898,9 +898,127 @@
         ]
       }
     },
+    "/bank/employee/accounts": {
+      "get": {
+        "summary": "GetAllAccounts — Employee only. Vraća agregiranu listu svih računa klijenata,\nsortiranu abecedno po prezimenu vlasnika. Podržava filtere po broju računa,\nimenu i prezimenu vlasnika (prosleđuju se kao query parametri).",
+        "operationId": "BankaService_GetAllAccounts",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAllAccountsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "accountNumber",
+            "description": "parcijalni match na broj_racuna (SQL ILIKE)",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "firstName",
+            "description": "parcijalni match na ime vlasnika (in-memory, case-insensitive)",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "lastName",
+            "description": "parcijalni match na prezime vlasnika (in-memory, case-insensitive)",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
+    "/bank/employee/accounts/{brojRacuna}/cards": {
+      "get": {
+        "summary": "GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.\nIme, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.",
+        "operationId": "BankaService_GetAccountCards",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetAccountCardsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "brojRacuna",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
+    "/bank/employee/cards/{cardNumber}/status": {
+      "patch": {
+        "summary": "EmployeeChangeCardStatus — Employee only. Menja status kartice (blokada/deblokada/deaktivacija).\nNakon uspešne promene šalje asinhronu email notifikaciju vlasniku, a za poslovne račune\ni ovlašćenom licu (email se čita iz lokalne baze, bez dodatnog poziva ka user-service-u).",
+        "operationId": "BankaService_EmployeeChangeCardStatus",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cardNumber",
+            "description": "broj kartice (path param)",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/BankaServiceEmployeeChangeCardStatusBody"
+            }
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
     "/bank/transactions/pending": {
       "get": {
-        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\r\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\r\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
+        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
         "operationId": "BankaService_GetPendingActions",
         "responses": {
           "200": {
@@ -1000,6 +1118,16 @@
     },
     "BankaServiceApprovePendingActionBody": {
       "type": "object"
+    },
+    "BankaServiceEmployeeChangeCardStatusBody": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "title": "\"AKTIVNA\" | \"BLOKIRANA\" | \"DEAKTIVIRANA\""
+        }
+      },
+      "description": "EmployeeChangeCardStatusRequest — promena statusa kartice od strane zaposlenog.\nDozvoljene akcije: AKTIVNA→BLOKIRANA, BLOKIRANA→AKTIVNA, */→DEAKTIVIRANA."
     },
     "BankaServiceRejectCreditBody": {
       "type": "object"
@@ -1580,6 +1708,63 @@
       },
       "description": "Delatnost predstavlja šifarnik delatnosti (klasifikacija privrednih subjekata)."
     },
+    "v1EmployeeAccountListItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "brojRacuna": {
+          "type": "string"
+        },
+        "vrstaRacuna": {
+          "type": "string",
+          "title": "\"LICNI\" | \"POSLOVNI\""
+        },
+        "kategorijaRacuna": {
+          "type": "string",
+          "title": "\"TEKUCI\" | \"DEVIZNI\""
+        },
+        "vlasnikId": {
+          "type": "string",
+          "format": "int64"
+        },
+        "imeVlasnika": {
+          "type": "string"
+        },
+        "prezimeVlasnika": {
+          "type": "string"
+        }
+      },
+      "description": "EmployeeAccountListItem je projekcija računa za zaposlene — sadrži podatke iz\nbank-service baze i ime/prezime vlasnika dohvaćeno sinhronim pozivom ka user-service-u."
+    },
+    "v1EmployeeKarticaListItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "brojKartice": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "title": "\"AKTIVNA\" | \"BLOKIRANA\" | \"DEAKTIVIRANA\""
+        },
+        "imeVlasnika": {
+          "type": "string"
+        },
+        "prezimeVlasnika": {
+          "type": "string"
+        },
+        "emailVlasnika": {
+          "type": "string"
+        }
+      },
+      "description": "EmployeeKarticaListItem je projekcija kartice za portal zaposlenih.\nVlasnik je vlasnik računa (ne ovlašćeno lice), dohvaćen iz user-service-a."
+    },
     "v1Firma": {
       "type": "object",
       "properties": {
@@ -1606,6 +1791,18 @@
       },
       "description": "Firma se popunjava samo za poslovne račune; za fizička lica ostaje null."
     },
+    "v1GetAccountCardsResponse": {
+      "type": "object",
+      "properties": {
+        "kartice": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeKarticaListItem"
+          }
+        }
+      }
+    },
     "v1GetAccountTransactionsResponse": {
       "type": "object",
       "properties": {
@@ -1614,6 +1811,18 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1Transakcija"
+          }
+        }
+      }
+    },
+    "v1GetAllAccountsResponse": {
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1EmployeeAccountListItem"
           }
         }
       }
@@ -1916,7 +2125,7 @@
           "title": "\"PENDING\""
         }
       },
-      "description": "PendingActionItem — projekcija za mobilni prikaz.\r\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
+      "description": "PendingActionItem — projekcija za mobilni prikaz.\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
     },
     "v1Transakcija": {
       "type": "object",
