@@ -51,6 +51,9 @@ const (
 	BankaService_EmployeeChangeCardStatus_FullMethodName = "/banka.v1.BankaService/EmployeeChangeCardStatus"
 	BankaService_GetAllAccounts_FullMethodName           = "/banka.v1.BankaService/GetAllAccounts"
 	BankaService_GetAccountCards_FullMethodName          = "/banka.v1.BankaService/GetAccountCards"
+	BankaService_ListExchanges_FullMethodName            = "/banka.v1.BankaService/ListExchanges"
+	BankaService_GetExchange_FullMethodName              = "/banka.v1.BankaService/GetExchange"
+	BankaService_ToggleMarketTestMode_FullMethodName     = "/banka.v1.BankaService/ToggleMarketTestMode"
 )
 
 // BankaServiceClient is the client API for BankaService service.
@@ -126,6 +129,15 @@ type BankaServiceClient interface {
 	// GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.
 	// Ime, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.
 	GetAccountCards(ctx context.Context, in *GetAccountCardsRequest, opts ...grpc.CallOption) (*GetAccountCardsResponse, error)
+	// ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.
+	// Filteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).
+	ListExchanges(ctx context.Context, in *ListExchangesRequest, opts ...grpc.CallOption) (*ListExchangesResponse, error)
+	// GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.
+	// Prosleđuje se ili id (path param) ili mic_code (query param) — ne oba.
+	GetExchange(ctx context.Context, in *GetExchangeRequest, opts ...grpc.CallOption) (*Exchange, error)
+	// ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje
+	// bypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).
+	ToggleMarketTestMode(ctx context.Context, in *ToggleMarketTestModeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type bankaServiceClient struct {
@@ -446,6 +458,36 @@ func (c *bankaServiceClient) GetAccountCards(ctx context.Context, in *GetAccount
 	return out, nil
 }
 
+func (c *bankaServiceClient) ListExchanges(ctx context.Context, in *ListExchangesRequest, opts ...grpc.CallOption) (*ListExchangesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListExchangesResponse)
+	err := c.cc.Invoke(ctx, BankaService_ListExchanges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankaServiceClient) GetExchange(ctx context.Context, in *GetExchangeRequest, opts ...grpc.CallOption) (*Exchange, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Exchange)
+	err := c.cc.Invoke(ctx, BankaService_GetExchange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *bankaServiceClient) ToggleMarketTestMode(ctx context.Context, in *ToggleMarketTestModeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, BankaService_ToggleMarketTestMode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BankaServiceServer is the server API for BankaService service.
 // All implementations must embed UnimplementedBankaServiceServer
 // for forward compatibility.
@@ -519,6 +561,15 @@ type BankaServiceServer interface {
 	// GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.
 	// Ime, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.
 	GetAccountCards(context.Context, *GetAccountCardsRequest) (*GetAccountCardsResponse, error)
+	// ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.
+	// Filteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).
+	ListExchanges(context.Context, *ListExchangesRequest) (*ListExchangesResponse, error)
+	// GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.
+	// Prosleđuje se ili id (path param) ili mic_code (query param) — ne oba.
+	GetExchange(context.Context, *GetExchangeRequest) (*Exchange, error)
+	// ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje
+	// bypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).
+	ToggleMarketTestMode(context.Context, *ToggleMarketTestModeRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedBankaServiceServer()
 }
 
@@ -621,6 +672,15 @@ func (UnimplementedBankaServiceServer) GetAllAccounts(context.Context, *GetAllAc
 }
 func (UnimplementedBankaServiceServer) GetAccountCards(context.Context, *GetAccountCardsRequest) (*GetAccountCardsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAccountCards not implemented")
+}
+func (UnimplementedBankaServiceServer) ListExchanges(context.Context, *ListExchangesRequest) (*ListExchangesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListExchanges not implemented")
+}
+func (UnimplementedBankaServiceServer) GetExchange(context.Context, *GetExchangeRequest) (*Exchange, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetExchange not implemented")
+}
+func (UnimplementedBankaServiceServer) ToggleMarketTestMode(context.Context, *ToggleMarketTestModeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method ToggleMarketTestMode not implemented")
 }
 func (UnimplementedBankaServiceServer) mustEmbedUnimplementedBankaServiceServer() {}
 func (UnimplementedBankaServiceServer) testEmbeddedByValue()                      {}
@@ -1201,6 +1261,60 @@ func _BankaService_GetAccountCards_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BankaService_ListExchanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListExchangesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankaServiceServer).ListExchanges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankaService_ListExchanges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankaServiceServer).ListExchanges(ctx, req.(*ListExchangesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankaService_GetExchange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetExchangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankaServiceServer).GetExchange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankaService_GetExchange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankaServiceServer).GetExchange(ctx, req.(*GetExchangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BankaService_ToggleMarketTestMode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ToggleMarketTestModeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BankaServiceServer).ToggleMarketTestMode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BankaService_ToggleMarketTestMode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BankaServiceServer).ToggleMarketTestMode(ctx, req.(*ToggleMarketTestModeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BankaService_ServiceDesc is the grpc.ServiceDesc for BankaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1331,6 +1445,18 @@ var BankaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAccountCards",
 			Handler:    _BankaService_GetAccountCards_Handler,
+		},
+		{
+			MethodName: "ListExchanges",
+			Handler:    _BankaService_ListExchanges_Handler,
+		},
+		{
+			MethodName: "GetExchange",
+			Handler:    _BankaService_GetExchange_Handler,
+		},
+		{
+			MethodName: "ToggleMarketTestMode",
+			Handler:    _BankaService_ToggleMarketTestMode_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

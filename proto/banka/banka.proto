@@ -501,6 +501,37 @@ message GetAccountCardsResponse {
   repeated EmployeeKarticaListItem kartice = 1;
 }
 
+// ─── Berze (Exchanges) ───────────────────────────────────────────────────────
+
+// Exchange predstavlja berzu hartija od vrednosti.
+message Exchange {
+  int64  id          = 1;
+  string name        = 2;    // naziv berze, e.g. "New York Stock Exchange"
+  string acronym     = 3;    // skraćenica, e.g. "NYSE"
+  string mic_code    = 4;    // ISO 10383 MIC kod, e.g. "XNYS"
+  string polity      = 5;    // država, e.g. "United States"
+  int64  currency_id = 6;    // FK na core_banking.valuta
+  string timezone    = 7;    // IANA timezone, e.g. "America/New_York"
+}
+
+message ListExchangesRequest {
+  string polity = 1;  // filter po državi; "" = sve
+  string search = 2;  // pretraga po name ili acronym; "" = sve
+}
+
+message ListExchangesResponse {
+  repeated Exchange exchanges = 1;
+}
+
+message GetExchangeRequest {
+  int64  id       = 1;  // 0 = nije prosleđen
+  string mic_code = 2;  // "" = nije prosleđen
+}
+
+message ToggleMarketTestModeRequest {
+  bool enabled = 1;  // true = uključi bypass radnog vremena, false = isključi
+}
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 service BankaService {
@@ -750,6 +781,36 @@ service BankaService {
   rpc GetAccountCards(GetAccountCardsRequest) returns (GetAccountCardsResponse) {
     option (google.api.http) = {
       get: "/bank/employee/accounts/{broj_racuna}/cards"
+    };
+  }
+
+  // ── Berze (Exchanges) ─────────────────────────────────────────────────────
+
+  // ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.
+  // Filteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).
+  rpc ListExchanges(ListExchangesRequest) returns (ListExchangesResponse) {
+    option (google.api.http) = {
+      get: "/bank/exchanges"
+    };
+  }
+
+  // GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.
+  // Prosleđuje se ili id (path param) ili mic_code (query param) — ne oba.
+  rpc GetExchange(GetExchangeRequest) returns (Exchange) {
+    option (google.api.http) = {
+      get: "/bank/exchanges/{id}"
+      additional_bindings: {
+        get: "/bank/exchanges/mic/{mic_code}"
+      }
+    };
+  }
+
+  // ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje
+  // bypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).
+  rpc ToggleMarketTestMode(ToggleMarketTestModeRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/bank/admin/exchanges/test-mode"
+      body: "*"
     };
   }
 }

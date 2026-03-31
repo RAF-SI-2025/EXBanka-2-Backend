@@ -4075,6 +4075,291 @@ func (x *GetAccountCardsResponse) GetKartice() []*EmployeeKarticaListItem {
 	return nil
 }
 
+// Exchange predstavlja berzu hartija od vrednosti.
+type Exchange struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`                                // naziv berze, e.g. "New York Stock Exchange"
+	Acronym       string                 `protobuf:"bytes,3,opt,name=acronym,proto3" json:"acronym,omitempty"`                          // skraćenica, e.g. "NYSE"
+	MicCode       string                 `protobuf:"bytes,4,opt,name=mic_code,json=micCode,proto3" json:"mic_code,omitempty"`           // ISO 10383 MIC kod, e.g. "XNYS"
+	Polity        string                 `protobuf:"bytes,5,opt,name=polity,proto3" json:"polity,omitempty"`                            // država, e.g. "United States"
+	CurrencyId    int64                  `protobuf:"varint,6,opt,name=currency_id,json=currencyId,proto3" json:"currency_id,omitempty"` // FK na core_banking.valuta
+	Timezone      string                 `protobuf:"bytes,7,opt,name=timezone,proto3" json:"timezone,omitempty"`                        // IANA timezone, e.g. "America/New_York"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Exchange) Reset() {
+	*x = Exchange{}
+	mi := &file_proto_banka_banka_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Exchange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Exchange) ProtoMessage() {}
+
+func (x *Exchange) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_banka_banka_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Exchange.ProtoReflect.Descriptor instead.
+func (*Exchange) Descriptor() ([]byte, []int) {
+	return file_proto_banka_banka_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *Exchange) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *Exchange) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Exchange) GetAcronym() string {
+	if x != nil {
+		return x.Acronym
+	}
+	return ""
+}
+
+func (x *Exchange) GetMicCode() string {
+	if x != nil {
+		return x.MicCode
+	}
+	return ""
+}
+
+func (x *Exchange) GetPolity() string {
+	if x != nil {
+		return x.Polity
+	}
+	return ""
+}
+
+func (x *Exchange) GetCurrencyId() int64 {
+	if x != nil {
+		return x.CurrencyId
+	}
+	return 0
+}
+
+func (x *Exchange) GetTimezone() string {
+	if x != nil {
+		return x.Timezone
+	}
+	return ""
+}
+
+type ListExchangesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Polity        string                 `protobuf:"bytes,1,opt,name=polity,proto3" json:"polity,omitempty"` // filter po državi; "" = sve
+	Search        string                 `protobuf:"bytes,2,opt,name=search,proto3" json:"search,omitempty"` // pretraga po name ili acronym; "" = sve
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListExchangesRequest) Reset() {
+	*x = ListExchangesRequest{}
+	mi := &file_proto_banka_banka_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListExchangesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListExchangesRequest) ProtoMessage() {}
+
+func (x *ListExchangesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_banka_banka_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListExchangesRequest.ProtoReflect.Descriptor instead.
+func (*ListExchangesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_banka_banka_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *ListExchangesRequest) GetPolity() string {
+	if x != nil {
+		return x.Polity
+	}
+	return ""
+}
+
+func (x *ListExchangesRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+type ListExchangesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Exchanges     []*Exchange            `protobuf:"bytes,1,rep,name=exchanges,proto3" json:"exchanges,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListExchangesResponse) Reset() {
+	*x = ListExchangesResponse{}
+	mi := &file_proto_banka_banka_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListExchangesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListExchangesResponse) ProtoMessage() {}
+
+func (x *ListExchangesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_banka_banka_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListExchangesResponse.ProtoReflect.Descriptor instead.
+func (*ListExchangesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_banka_banka_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *ListExchangesResponse) GetExchanges() []*Exchange {
+	if x != nil {
+		return x.Exchanges
+	}
+	return nil
+}
+
+type GetExchangeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`                         // 0 = nije prosleđen
+	MicCode       string                 `protobuf:"bytes,2,opt,name=mic_code,json=micCode,proto3" json:"mic_code,omitempty"` // "" = nije prosleđen
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetExchangeRequest) Reset() {
+	*x = GetExchangeRequest{}
+	mi := &file_proto_banka_banka_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetExchangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetExchangeRequest) ProtoMessage() {}
+
+func (x *GetExchangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_banka_banka_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetExchangeRequest.ProtoReflect.Descriptor instead.
+func (*GetExchangeRequest) Descriptor() ([]byte, []int) {
+	return file_proto_banka_banka_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *GetExchangeRequest) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *GetExchangeRequest) GetMicCode() string {
+	if x != nil {
+		return x.MicCode
+	}
+	return ""
+}
+
+type ToggleMarketTestModeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"` // true = uključi bypass radnog vremena, false = isključi
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToggleMarketTestModeRequest) Reset() {
+	*x = ToggleMarketTestModeRequest{}
+	mi := &file_proto_banka_banka_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToggleMarketTestModeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToggleMarketTestModeRequest) ProtoMessage() {}
+
+func (x *ToggleMarketTestModeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_banka_banka_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToggleMarketTestModeRequest.ProtoReflect.Descriptor instead.
+func (*ToggleMarketTestModeRequest) Descriptor() ([]byte, []int) {
+	return file_proto_banka_banka_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ToggleMarketTestModeRequest) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
 var File_proto_banka_banka_proto protoreflect.FileDescriptor
 
 const file_proto_banka_banka_proto_rawDesc = "" +
@@ -4424,7 +4709,26 @@ const file_proto_banka_banka_proto_rawDesc = "" +
 	"\x10prezime_vlasnika\x18\x05 \x01(\tR\x0fprezimeVlasnika\x12%\n" +
 	"\x0eemail_vlasnika\x18\x06 \x01(\tR\remailVlasnika\"V\n" +
 	"\x17GetAccountCardsResponse\x12;\n" +
-	"\akartice\x18\x01 \x03(\v2!.banka.v1.EmployeeKarticaListItemR\akartice2\xd3\x1f\n" +
+	"\akartice\x18\x01 \x03(\v2!.banka.v1.EmployeeKarticaListItemR\akartice\"\xb8\x01\n" +
+	"\bExchange\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aacronym\x18\x03 \x01(\tR\aacronym\x12\x19\n" +
+	"\bmic_code\x18\x04 \x01(\tR\amicCode\x12\x16\n" +
+	"\x06polity\x18\x05 \x01(\tR\x06polity\x12\x1f\n" +
+	"\vcurrency_id\x18\x06 \x01(\x03R\n" +
+	"currencyId\x12\x1a\n" +
+	"\btimezone\x18\a \x01(\tR\btimezone\"F\n" +
+	"\x14ListExchangesRequest\x12\x16\n" +
+	"\x06polity\x18\x01 \x01(\tR\x06polity\x12\x16\n" +
+	"\x06search\x18\x02 \x01(\tR\x06search\"I\n" +
+	"\x15ListExchangesResponse\x120\n" +
+	"\texchanges\x18\x01 \x03(\v2\x12.banka.v1.ExchangeR\texchanges\"?\n" +
+	"\x12GetExchangeRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
+	"\bmic_code\x18\x02 \x01(\tR\amicCode\"7\n" +
+	"\x1bToggleMarketTestModeRequest\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled2\xc3\"\n" +
 	"\fBankaService\x12b\n" +
 	"\rGetCurrencies\x12\x16.google.protobuf.Empty\x1a\x1f.banka.v1.GetCurrenciesResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/bank/currencies\x12b\n" +
 	"\rGetDelatnosti\x12\x16.google.protobuf.Empty\x1a\x1f.banka.v1.GetDelatnostiResponse\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/bank/delatnosti\x12k\n" +
@@ -4456,7 +4760,10 @@ const file_proto_banka_banka_proto_rawDesc = "" +
 	"\x15GetAllApprovedCredits\x12&.banka.v1.GetAllApprovedCreditsRequest\x1a'.banka.v1.GetAllApprovedCreditsResponse\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/employee/credits\x12\x93\x01\n" +
 	"\x18EmployeeChangeCardStatus\x12).banka.v1.EmployeeChangeCardStatusRequest\x1a\x16.google.protobuf.Empty\"4\x82\xd3\xe4\x93\x02.:\x01*2)/bank/employee/cards/{card_number}/status\x12t\n" +
 	"\x0eGetAllAccounts\x12\x1f.banka.v1.GetAllAccountsRequest\x1a .banka.v1.GetAllAccountsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/bank/employee/accounts\x12\x8b\x01\n" +
-	"\x0fGetAccountCards\x12 .banka.v1.GetAccountCardsRequest\x1a!.banka.v1.GetAccountCardsResponse\"3\x82\xd3\xe4\x93\x02-\x12+/bank/employee/accounts/{broj_racuna}/cardsB#Z!banka-backend/proto/banka;bankav1b\x06proto3"
+	"\x0fGetAccountCards\x12 .banka.v1.GetAccountCardsRequest\x1a!.banka.v1.GetAccountCardsResponse\"3\x82\xd3\xe4\x93\x02-\x12+/bank/employee/accounts/{broj_racuna}/cards\x12i\n" +
+	"\rListExchanges\x12\x1e.banka.v1.ListExchangesRequest\x1a\x1f.banka.v1.ListExchangesResponse\"\x17\x82\xd3\xe4\x93\x02\x11\x12\x0f/bank/exchanges\x12\x7f\n" +
+	"\vGetExchange\x12\x1c.banka.v1.GetExchangeRequest\x1a\x12.banka.v1.Exchange\">\x82\xd3\xe4\x93\x028Z \x12\x1e/bank/exchanges/mic/{mic_code}\x12\x14/bank/exchanges/{id}\x12\x81\x01\n" +
+	"\x14ToggleMarketTestMode\x12%.banka.v1.ToggleMarketTestModeRequest\x1a\x16.google.protobuf.Empty\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/bank/admin/exchanges/test-modeB#Z!banka-backend/proto/banka;bankav1b\x06proto3"
 
 var (
 	file_proto_banka_banka_proto_rawDescOnce sync.Once
@@ -4470,7 +4777,7 @@ func file_proto_banka_banka_proto_rawDescGZIP() []byte {
 	return file_proto_banka_banka_proto_rawDescData
 }
 
-var file_proto_banka_banka_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_proto_banka_banka_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
 var file_proto_banka_banka_proto_goTypes = []any{
 	(*Currency)(nil),                        // 0: banka.v1.Currency
 	(*GetCurrenciesResponse)(nil),           // 1: banka.v1.GetCurrenciesResponse
@@ -4531,7 +4838,12 @@ var file_proto_banka_banka_proto_goTypes = []any{
 	(*GetAccountCardsRequest)(nil),          // 56: banka.v1.GetAccountCardsRequest
 	(*EmployeeKarticaListItem)(nil),         // 57: banka.v1.EmployeeKarticaListItem
 	(*GetAccountCardsResponse)(nil),         // 58: banka.v1.GetAccountCardsResponse
-	(*emptypb.Empty)(nil),                   // 59: google.protobuf.Empty
+	(*Exchange)(nil),                        // 59: banka.v1.Exchange
+	(*ListExchangesRequest)(nil),            // 60: banka.v1.ListExchangesRequest
+	(*ListExchangesResponse)(nil),           // 61: banka.v1.ListExchangesResponse
+	(*GetExchangeRequest)(nil),              // 62: banka.v1.GetExchangeRequest
+	(*ToggleMarketTestModeRequest)(nil),     // 63: banka.v1.ToggleMarketTestModeRequest
+	(*emptypb.Empty)(nil),                   // 64: google.protobuf.Empty
 }
 var file_proto_banka_banka_proto_depIdxs = []int32{
 	0,  // 0: banka.v1.GetCurrenciesResponse.valute:type_name -> banka.v1.Currency
@@ -4551,73 +4863,80 @@ var file_proto_banka_banka_proto_depIdxs = []int32{
 	37, // 14: banka.v1.GetAllApprovedCreditsResponse.krediti:type_name -> banka.v1.Credit
 	54, // 15: banka.v1.GetAllAccountsResponse.accounts:type_name -> banka.v1.EmployeeAccountListItem
 	57, // 16: banka.v1.GetAccountCardsResponse.kartice:type_name -> banka.v1.EmployeeKarticaListItem
-	59, // 17: banka.v1.BankaService.GetCurrencies:input_type -> google.protobuf.Empty
-	59, // 18: banka.v1.BankaService.GetDelatnosti:input_type -> google.protobuf.Empty
-	5,  // 19: banka.v1.BankaService.CreateAccount:input_type -> banka.v1.CreateAccountRequest
-	59, // 20: banka.v1.BankaService.GetClientAccounts:input_type -> google.protobuf.Empty
-	9,  // 21: banka.v1.BankaService.GetAccountDetail:input_type -> banka.v1.GetAccountDetailRequest
-	11, // 22: banka.v1.BankaService.GetAccountTransactions:input_type -> banka.v1.GetAccountTransactionsRequest
-	14, // 23: banka.v1.BankaService.RenameAccount:input_type -> banka.v1.RenameAccountRequest
-	15, // 24: banka.v1.BankaService.UpdateAccountLimit:input_type -> banka.v1.UpdateAccountLimitRequest
-	19, // 25: banka.v1.BankaService.GetPendingAction:input_type -> banka.v1.GetPendingActionRequest
-	59, // 26: banka.v1.BankaService.GetPendingActions:input_type -> google.protobuf.Empty
-	21, // 27: banka.v1.BankaService.ApprovePendingAction:input_type -> banka.v1.ApprovePendingActionRequest
-	23, // 28: banka.v1.BankaService.VerifyLimitChange:input_type -> banka.v1.VerifyLimitChangeRequest
-	59, // 29: banka.v1.BankaService.GetPaymentRecipients:input_type -> google.protobuf.Empty
-	26, // 30: banka.v1.BankaService.CreatePaymentRecipient:input_type -> banka.v1.CreatePaymentRecipientRequest
-	27, // 31: banka.v1.BankaService.UpdatePaymentRecipient:input_type -> banka.v1.UpdatePaymentRecipientRequest
-	28, // 32: banka.v1.BankaService.DeletePaymentRecipient:input_type -> banka.v1.DeletePaymentRecipientRequest
-	29, // 33: banka.v1.BankaService.CreatePaymentIntent:input_type -> banka.v1.CreatePaymentIntentRequest
-	30, // 34: banka.v1.BankaService.CreateTransferIntent:input_type -> banka.v1.CreateTransferIntentRequest
-	32, // 35: banka.v1.BankaService.VerifyAndExecutePayment:input_type -> banka.v1.VerifyPaymentRequest
-	34, // 36: banka.v1.BankaService.GetPaymentHistory:input_type -> banka.v1.GetPaymentHistoryRequest
-	36, // 37: banka.v1.BankaService.GetPaymentDetail:input_type -> banka.v1.GetPaymentDetailRequest
-	40, // 38: banka.v1.BankaService.ApplyForCredit:input_type -> banka.v1.ApplyForCreditRequest
-	59, // 39: banka.v1.BankaService.GetClientCredits:input_type -> google.protobuf.Empty
-	43, // 40: banka.v1.BankaService.GetCreditDetails:input_type -> banka.v1.GetCreditDetailsRequest
-	48, // 41: banka.v1.BankaService.GetAllCreditRequests:input_type -> banka.v1.GetAllCreditRequestsRequest
-	45, // 42: banka.v1.BankaService.ApproveCredit:input_type -> banka.v1.ApproveCreditRequest
-	47, // 43: banka.v1.BankaService.RejectCredit:input_type -> banka.v1.RejectCreditRequest
-	50, // 44: banka.v1.BankaService.GetAllApprovedCredits:input_type -> banka.v1.GetAllApprovedCreditsRequest
-	52, // 45: banka.v1.BankaService.EmployeeChangeCardStatus:input_type -> banka.v1.EmployeeChangeCardStatusRequest
-	53, // 46: banka.v1.BankaService.GetAllAccounts:input_type -> banka.v1.GetAllAccountsRequest
-	56, // 47: banka.v1.BankaService.GetAccountCards:input_type -> banka.v1.GetAccountCardsRequest
-	1,  // 48: banka.v1.BankaService.GetCurrencies:output_type -> banka.v1.GetCurrenciesResponse
-	3,  // 49: banka.v1.BankaService.GetDelatnosti:output_type -> banka.v1.GetDelatnostiResponse
-	6,  // 50: banka.v1.BankaService.CreateAccount:output_type -> banka.v1.CreateAccountResponse
-	8,  // 51: banka.v1.BankaService.GetClientAccounts:output_type -> banka.v1.GetClientAccountsResponse
-	10, // 52: banka.v1.BankaService.GetAccountDetail:output_type -> banka.v1.AccountDetail
-	13, // 53: banka.v1.BankaService.GetAccountTransactions:output_type -> banka.v1.GetAccountTransactionsResponse
-	59, // 54: banka.v1.BankaService.RenameAccount:output_type -> google.protobuf.Empty
-	16, // 55: banka.v1.BankaService.UpdateAccountLimit:output_type -> banka.v1.UpdateAccountLimitResponse
-	20, // 56: banka.v1.BankaService.GetPendingAction:output_type -> banka.v1.GetPendingActionResponse
-	18, // 57: banka.v1.BankaService.GetPendingActions:output_type -> banka.v1.GetPendingActionsResponse
-	22, // 58: banka.v1.BankaService.ApprovePendingAction:output_type -> banka.v1.ApprovePendingActionResponse
-	59, // 59: banka.v1.BankaService.VerifyLimitChange:output_type -> google.protobuf.Empty
-	25, // 60: banka.v1.BankaService.GetPaymentRecipients:output_type -> banka.v1.GetPaymentRecipientsResponse
-	24, // 61: banka.v1.BankaService.CreatePaymentRecipient:output_type -> banka.v1.PaymentRecipientItem
-	24, // 62: banka.v1.BankaService.UpdatePaymentRecipient:output_type -> banka.v1.PaymentRecipientItem
-	59, // 63: banka.v1.BankaService.DeletePaymentRecipient:output_type -> google.protobuf.Empty
-	31, // 64: banka.v1.BankaService.CreatePaymentIntent:output_type -> banka.v1.CreatePaymentIntentResponse
-	31, // 65: banka.v1.BankaService.CreateTransferIntent:output_type -> banka.v1.CreatePaymentIntentResponse
-	33, // 66: banka.v1.BankaService.VerifyAndExecutePayment:output_type -> banka.v1.PaymentIntentItem
-	35, // 67: banka.v1.BankaService.GetPaymentHistory:output_type -> banka.v1.GetPaymentHistoryResponse
-	33, // 68: banka.v1.BankaService.GetPaymentDetail:output_type -> banka.v1.PaymentIntentItem
-	41, // 69: banka.v1.BankaService.ApplyForCredit:output_type -> banka.v1.ApplyForCreditResponse
-	42, // 70: banka.v1.BankaService.GetClientCredits:output_type -> banka.v1.GetClientCreditsResponse
-	44, // 71: banka.v1.BankaService.GetCreditDetails:output_type -> banka.v1.GetCreditDetailsResponse
-	49, // 72: banka.v1.BankaService.GetAllCreditRequests:output_type -> banka.v1.GetAllCreditRequestsResponse
-	46, // 73: banka.v1.BankaService.ApproveCredit:output_type -> banka.v1.ApproveCreditResponse
-	59, // 74: banka.v1.BankaService.RejectCredit:output_type -> google.protobuf.Empty
-	51, // 75: banka.v1.BankaService.GetAllApprovedCredits:output_type -> banka.v1.GetAllApprovedCreditsResponse
-	59, // 76: banka.v1.BankaService.EmployeeChangeCardStatus:output_type -> google.protobuf.Empty
-	55, // 77: banka.v1.BankaService.GetAllAccounts:output_type -> banka.v1.GetAllAccountsResponse
-	58, // 78: banka.v1.BankaService.GetAccountCards:output_type -> banka.v1.GetAccountCardsResponse
-	48, // [48:79] is the sub-list for method output_type
-	17, // [17:48] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	59, // 17: banka.v1.ListExchangesResponse.exchanges:type_name -> banka.v1.Exchange
+	64, // 18: banka.v1.BankaService.GetCurrencies:input_type -> google.protobuf.Empty
+	64, // 19: banka.v1.BankaService.GetDelatnosti:input_type -> google.protobuf.Empty
+	5,  // 20: banka.v1.BankaService.CreateAccount:input_type -> banka.v1.CreateAccountRequest
+	64, // 21: banka.v1.BankaService.GetClientAccounts:input_type -> google.protobuf.Empty
+	9,  // 22: banka.v1.BankaService.GetAccountDetail:input_type -> banka.v1.GetAccountDetailRequest
+	11, // 23: banka.v1.BankaService.GetAccountTransactions:input_type -> banka.v1.GetAccountTransactionsRequest
+	14, // 24: banka.v1.BankaService.RenameAccount:input_type -> banka.v1.RenameAccountRequest
+	15, // 25: banka.v1.BankaService.UpdateAccountLimit:input_type -> banka.v1.UpdateAccountLimitRequest
+	19, // 26: banka.v1.BankaService.GetPendingAction:input_type -> banka.v1.GetPendingActionRequest
+	64, // 27: banka.v1.BankaService.GetPendingActions:input_type -> google.protobuf.Empty
+	21, // 28: banka.v1.BankaService.ApprovePendingAction:input_type -> banka.v1.ApprovePendingActionRequest
+	23, // 29: banka.v1.BankaService.VerifyLimitChange:input_type -> banka.v1.VerifyLimitChangeRequest
+	64, // 30: banka.v1.BankaService.GetPaymentRecipients:input_type -> google.protobuf.Empty
+	26, // 31: banka.v1.BankaService.CreatePaymentRecipient:input_type -> banka.v1.CreatePaymentRecipientRequest
+	27, // 32: banka.v1.BankaService.UpdatePaymentRecipient:input_type -> banka.v1.UpdatePaymentRecipientRequest
+	28, // 33: banka.v1.BankaService.DeletePaymentRecipient:input_type -> banka.v1.DeletePaymentRecipientRequest
+	29, // 34: banka.v1.BankaService.CreatePaymentIntent:input_type -> banka.v1.CreatePaymentIntentRequest
+	30, // 35: banka.v1.BankaService.CreateTransferIntent:input_type -> banka.v1.CreateTransferIntentRequest
+	32, // 36: banka.v1.BankaService.VerifyAndExecutePayment:input_type -> banka.v1.VerifyPaymentRequest
+	34, // 37: banka.v1.BankaService.GetPaymentHistory:input_type -> banka.v1.GetPaymentHistoryRequest
+	36, // 38: banka.v1.BankaService.GetPaymentDetail:input_type -> banka.v1.GetPaymentDetailRequest
+	40, // 39: banka.v1.BankaService.ApplyForCredit:input_type -> banka.v1.ApplyForCreditRequest
+	64, // 40: banka.v1.BankaService.GetClientCredits:input_type -> google.protobuf.Empty
+	43, // 41: banka.v1.BankaService.GetCreditDetails:input_type -> banka.v1.GetCreditDetailsRequest
+	48, // 42: banka.v1.BankaService.GetAllCreditRequests:input_type -> banka.v1.GetAllCreditRequestsRequest
+	45, // 43: banka.v1.BankaService.ApproveCredit:input_type -> banka.v1.ApproveCreditRequest
+	47, // 44: banka.v1.BankaService.RejectCredit:input_type -> banka.v1.RejectCreditRequest
+	50, // 45: banka.v1.BankaService.GetAllApprovedCredits:input_type -> banka.v1.GetAllApprovedCreditsRequest
+	52, // 46: banka.v1.BankaService.EmployeeChangeCardStatus:input_type -> banka.v1.EmployeeChangeCardStatusRequest
+	53, // 47: banka.v1.BankaService.GetAllAccounts:input_type -> banka.v1.GetAllAccountsRequest
+	56, // 48: banka.v1.BankaService.GetAccountCards:input_type -> banka.v1.GetAccountCardsRequest
+	60, // 49: banka.v1.BankaService.ListExchanges:input_type -> banka.v1.ListExchangesRequest
+	62, // 50: banka.v1.BankaService.GetExchange:input_type -> banka.v1.GetExchangeRequest
+	63, // 51: banka.v1.BankaService.ToggleMarketTestMode:input_type -> banka.v1.ToggleMarketTestModeRequest
+	1,  // 52: banka.v1.BankaService.GetCurrencies:output_type -> banka.v1.GetCurrenciesResponse
+	3,  // 53: banka.v1.BankaService.GetDelatnosti:output_type -> banka.v1.GetDelatnostiResponse
+	6,  // 54: banka.v1.BankaService.CreateAccount:output_type -> banka.v1.CreateAccountResponse
+	8,  // 55: banka.v1.BankaService.GetClientAccounts:output_type -> banka.v1.GetClientAccountsResponse
+	10, // 56: banka.v1.BankaService.GetAccountDetail:output_type -> banka.v1.AccountDetail
+	13, // 57: banka.v1.BankaService.GetAccountTransactions:output_type -> banka.v1.GetAccountTransactionsResponse
+	64, // 58: banka.v1.BankaService.RenameAccount:output_type -> google.protobuf.Empty
+	16, // 59: banka.v1.BankaService.UpdateAccountLimit:output_type -> banka.v1.UpdateAccountLimitResponse
+	20, // 60: banka.v1.BankaService.GetPendingAction:output_type -> banka.v1.GetPendingActionResponse
+	18, // 61: banka.v1.BankaService.GetPendingActions:output_type -> banka.v1.GetPendingActionsResponse
+	22, // 62: banka.v1.BankaService.ApprovePendingAction:output_type -> banka.v1.ApprovePendingActionResponse
+	64, // 63: banka.v1.BankaService.VerifyLimitChange:output_type -> google.protobuf.Empty
+	25, // 64: banka.v1.BankaService.GetPaymentRecipients:output_type -> banka.v1.GetPaymentRecipientsResponse
+	24, // 65: banka.v1.BankaService.CreatePaymentRecipient:output_type -> banka.v1.PaymentRecipientItem
+	24, // 66: banka.v1.BankaService.UpdatePaymentRecipient:output_type -> banka.v1.PaymentRecipientItem
+	64, // 67: banka.v1.BankaService.DeletePaymentRecipient:output_type -> google.protobuf.Empty
+	31, // 68: banka.v1.BankaService.CreatePaymentIntent:output_type -> banka.v1.CreatePaymentIntentResponse
+	31, // 69: banka.v1.BankaService.CreateTransferIntent:output_type -> banka.v1.CreatePaymentIntentResponse
+	33, // 70: banka.v1.BankaService.VerifyAndExecutePayment:output_type -> banka.v1.PaymentIntentItem
+	35, // 71: banka.v1.BankaService.GetPaymentHistory:output_type -> banka.v1.GetPaymentHistoryResponse
+	33, // 72: banka.v1.BankaService.GetPaymentDetail:output_type -> banka.v1.PaymentIntentItem
+	41, // 73: banka.v1.BankaService.ApplyForCredit:output_type -> banka.v1.ApplyForCreditResponse
+	42, // 74: banka.v1.BankaService.GetClientCredits:output_type -> banka.v1.GetClientCreditsResponse
+	44, // 75: banka.v1.BankaService.GetCreditDetails:output_type -> banka.v1.GetCreditDetailsResponse
+	49, // 76: banka.v1.BankaService.GetAllCreditRequests:output_type -> banka.v1.GetAllCreditRequestsResponse
+	46, // 77: banka.v1.BankaService.ApproveCredit:output_type -> banka.v1.ApproveCreditResponse
+	64, // 78: banka.v1.BankaService.RejectCredit:output_type -> google.protobuf.Empty
+	51, // 79: banka.v1.BankaService.GetAllApprovedCredits:output_type -> banka.v1.GetAllApprovedCreditsResponse
+	64, // 80: banka.v1.BankaService.EmployeeChangeCardStatus:output_type -> google.protobuf.Empty
+	55, // 81: banka.v1.BankaService.GetAllAccounts:output_type -> banka.v1.GetAllAccountsResponse
+	58, // 82: banka.v1.BankaService.GetAccountCards:output_type -> banka.v1.GetAccountCardsResponse
+	61, // 83: banka.v1.BankaService.ListExchanges:output_type -> banka.v1.ListExchangesResponse
+	59, // 84: banka.v1.BankaService.GetExchange:output_type -> banka.v1.Exchange
+	64, // 85: banka.v1.BankaService.ToggleMarketTestMode:output_type -> google.protobuf.Empty
+	52, // [52:86] is the sub-list for method output_type
+	18, // [18:52] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_proto_banka_banka_proto_init() }
@@ -4633,7 +4952,7 @@ func file_proto_banka_banka_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_banka_banka_proto_rawDesc), len(file_proto_banka_banka_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   59,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

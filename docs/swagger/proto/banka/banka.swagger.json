@@ -303,6 +303,40 @@
         ]
       }
     },
+    "/bank/admin/exchanges/test-mode": {
+      "post": {
+        "summary": "ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje\nbypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).",
+        "operationId": "BankaService_ToggleMarketTestMode",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "type": "object",
+              "properties": {}
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ToggleMarketTestModeRequest"
+            }
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
     "/bank/client/accounts": {
       "get": {
         "summary": "GetClientAccounts — Client only. Vraća aktivne račune trenutno prijavljenog klijenta.",
@@ -1009,6 +1043,125 @@
             "schema": {
               "$ref": "#/definitions/BankaServiceEmployeeChangeCardStatusBody"
             }
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
+    "/bank/exchanges": {
+      "get": {
+        "summary": "ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.\nFilteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).",
+        "operationId": "BankaService_ListExchanges",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListExchangesResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "polity",
+            "description": "filter po državi; \"\" = sve",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "description": "pretraga po name ili acronym; \"\" = sve",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
+    "/bank/exchanges/mic/{micCode}": {
+      "get": {
+        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
+        "operationId": "BankaService_GetExchange2",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Exchange"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "micCode",
+            "description": "\"\" = nije prosleđen",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "id",
+            "description": "0 = nije prosleđen",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "int64"
+          }
+        ],
+        "tags": [
+          "BankaService"
+        ]
+      }
+    },
+    "/bank/exchanges/{id}": {
+      "get": {
+        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
+        "operationId": "BankaService_GetExchange",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Exchange"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "description": "0 = nije prosleđen",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "int64"
+          },
+          {
+            "name": "micCode",
+            "description": "\"\" = nije prosleđen",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -1784,6 +1937,41 @@
       },
       "description": "EmployeeKarticaListItem je projekcija kartice za portal zaposlenih.\nVlasnik je vlasnik računa (ne ovlašćeno lice), dohvaćen iz user-service-a."
     },
+    "v1Exchange": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "int64"
+        },
+        "name": {
+          "type": "string",
+          "title": "naziv berze, e.g. \"New York Stock Exchange\""
+        },
+        "acronym": {
+          "type": "string",
+          "title": "skraćenica, e.g. \"NYSE\""
+        },
+        "micCode": {
+          "type": "string",
+          "title": "ISO 10383 MIC kod, e.g. \"XNYS\""
+        },
+        "polity": {
+          "type": "string",
+          "title": "država, e.g. \"United States\""
+        },
+        "currencyId": {
+          "type": "string",
+          "format": "int64",
+          "title": "FK na core_banking.valuta"
+        },
+        "timezone": {
+          "type": "string",
+          "title": "IANA timezone, e.g. \"America/New_York\""
+        }
+      },
+      "description": "Exchange predstavlja berzu hartija od vrednosti."
+    },
     "v1Firma": {
       "type": "object",
       "properties": {
@@ -2015,6 +2203,18 @@
       },
       "description": "Installment (Rata) — jedan zapis o rati kredita."
     },
+    "v1ListExchangesResponse": {
+      "type": "object",
+      "properties": {
+        "exchanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Exchange"
+          }
+        }
+      }
+    },
     "v1PaymentIntentItem": {
       "type": "object",
       "properties": {
@@ -2154,6 +2354,15 @@
         }
       },
       "description": "PendingActionItem — projekcija za mobilni prikaz.\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
+    },
+    "v1ToggleMarketTestModeRequest": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "true = uključi bypass radnog vremena, false = isključi"
+        }
+      }
     },
     "v1Transakcija": {
       "type": "object",

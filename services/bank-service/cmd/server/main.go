@@ -87,18 +87,27 @@ func main() {
 	kreditService := service.NewKreditService(kreditRepo)
 
 	karticaRepo := repository.NewKarticaRepository(db)
+	berzaRepo := repository.NewBerzaRepository(db)
 
 	// ── Redis store za OTP state (Flow 2) ────────────────────────────────────
 	var redisStore domain.CardRequestStore
+	var marketModeStore domain.MarketModeStore
 	if cfg.RedisURL != "" {
 		rs, err := transport.NewRedisCardRequestStore(cfg.RedisURL)
 		if err != nil {
 			log.Fatalf("[main] Redis konekcija: %v", err)
 		}
 		redisStore = rs
+
+		ms, err := transport.NewRedisMarketModeStore(cfg.RedisURL)
+		if err != nil {
+			log.Fatalf("[main] Redis market mode store: %v", err)
+		}
+		marketModeStore = ms
 	} else {
 		log.Printf("[main] REDIS_URL nije postavljen — /api/cards/request neće biti funkcionalan")
 		redisStore = &transport.NoOpCardRequestStore{}
+		marketModeStore = &transport.NoOpMarketModeStore{}
 	}
 
 	// ── Notification-service gRPC klijent (sinhronizovano slanje OTP emaila) ─
@@ -117,6 +126,7 @@ func main() {
 	}
 
 	karticaService := service.NewKarticaService(karticaRepo, cfg.CVVPepper, redisStore, notifClient)
+	berzaService := service.NewBerzaService(berzaRepo, marketModeStore)
 
 	// ── InstallmentWorker (cron job za automatsku naplatu rata) ───────────────
 	var notifPublisher worker.NotificationPublisher
@@ -156,7 +166,7 @@ func main() {
 	actuaryService := service.NewActuaryService(actuaryRepo)
 	actuaryHandler := handler.NewActuaryHandler(actuaryService)
 
-	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService, karticaService, userClient, accountPublisher)
+	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService, karticaService, berzaService, userClient, accountPublisher)
 	exchangeProvider := repository.NewExchangeRateProvider(cfg.ExchangeRateAPIKey, cfg.ExchangeRateAPIBaseURL)
 	exchangeTransferRepo := repository.NewExchangeTransferRepository(db)
 	exchangeService := service.NewExchangeService(exchangeProvider, exchangeTransferRepo, cfg.ExchangeSpreadRate, cfg.ExchangeProvizijaRate)

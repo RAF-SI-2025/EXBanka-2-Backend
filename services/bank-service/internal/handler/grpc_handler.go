@@ -45,6 +45,7 @@ type BankHandler struct {
 	paymentService   domain.PaymentService
 	kreditService    domain.KreditService
 	karticaService   domain.KarticaService
+	berzaService     domain.BerzaService
 	userClient       clientEmailLookup
 	accountPublisher worker.AccountEmailPublisher
 }
@@ -56,6 +57,7 @@ func NewBankHandler(
 	paymentService domain.PaymentService,
 	kreditService domain.KreditService,
 	karticaService domain.KarticaService,
+	berzaService domain.BerzaService,
 	userClient clientEmailLookup,
 	accountPublisher worker.AccountEmailPublisher,
 ) *BankHandler {
@@ -66,6 +68,7 @@ func NewBankHandler(
 		paymentService:   paymentService,
 		kreditService:    kreditService,
 		karticaService:   karticaService,
+		berzaService:     berzaService,
 		userClient:       userClient,
 		accountPublisher: accountPublisher,
 	}
