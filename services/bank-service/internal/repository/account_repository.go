@@ -25,6 +25,7 @@ type currencyModel struct {
 	ID     int64  `gorm:"column:id;primaryKey"`
 	Naziv  string `gorm:"column:naziv"`
 	Oznaka string `gorm:"column:oznaka"`
+	Status bool   `gorm:"column:status"`
 }
 
 func (currencyModel) TableName() string {
@@ -58,7 +59,7 @@ func (r *currencyRepository) GetByID(ctx context.Context, id int64) (*domain.Cur
 
 func (r *currencyRepository) GetAll(ctx context.Context) ([]domain.Currency, error) {
 	var models []currencyModel
-	if err := r.db.WithContext(ctx).Find(&models).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("status = ?", true).Find(&models).Error; err != nil {
 		return nil, err
 	}
 	currencies := make([]domain.Currency, 0, len(models))

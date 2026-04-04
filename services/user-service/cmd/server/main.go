@@ -84,7 +84,16 @@ func main() {
 	})
 	grpcSrv := transport.NewGRPCServer(cfg.GRPCAddr, authInterceptor.Unary())
 
-	handler := userhandler.NewUserHandler(querier, sqlDB, cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTActivationSecret, utils.NewAMQPPublisher(cfg.RabbitMQURL), utils.NewAMQPUserCreatedPublisher(cfg.RabbitMQURL), userservice.NewClientService(querier))
+	// ── bank-service client (optional — nil disables actuary sync) ──────────────
+	var bankClient userhandler.BankActuaryClient
+	if cfg.BankServiceAddr != "" {
+		bankClient = transport.NewBankServiceClient(cfg.BankServiceAddr)
+		log.Printf("[main] bank-service klijent konfigurisan na %s", cfg.BankServiceAddr)
+	} else {
+		log.Printf("[main] BANK_SERVICE_ADDR nije postavljen — aktuar sinhronizacija neće biti aktivna")
+	}
+
+	handler := userhandler.NewUserHandler(querier, sqlDB, cfg.JWTAccessSecret, cfg.JWTRefreshSecret, cfg.JWTActivationSecret, utils.NewAMQPPublisher(cfg.RabbitMQURL), utils.NewAMQPUserCreatedPublisher(cfg.RabbitMQURL), userservice.NewClientService(querier), bankClient)
 	pb.RegisterUserServiceServer(grpcSrv.Server(), handler)
 
 	// ── 4. gRPC-Gateway: dial the local gRPC server ──────────────────────────

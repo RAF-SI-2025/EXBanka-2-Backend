@@ -88,6 +88,31 @@ func (q *Queries) DeleteActuary(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteActuaryByEmployeeId = `-- name: DeleteActuaryByEmployeeId :exec
+DELETE FROM core_banking.actuary_info
+WHERE employee_id = $1
+`
+
+// Removes the actuary_info record for the given employee_id.
+// Idempotent: no error when no row matches.
+func (q *Queries) DeleteActuaryByEmployeeId(ctx context.Context, employeeID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteActuaryByEmployeeId, employeeID)
+	return err
+}
+
+const resetAllAgentsUsedLimit = `-- name: ResetAllAgentsUsedLimit :exec
+UPDATE core_banking.actuary_info
+SET used_limit  = '0.00',
+    updated_at  = NOW()
+WHERE actuary_type = 'AGENT'
+`
+
+// Atomically resets used_limit to '0.00' for every AGENT actuary.
+func (q *Queries) ResetAllAgentsUsedLimit(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetAllAgentsUsedLimit)
+	return err
+}
+
 const getActuaryByEmployeeId = `-- name: GetActuaryByEmployeeId :one
 SELECT
     id,

@@ -110,3 +110,17 @@ RETURNING
 -- No-op (no error) when the id does not exist.
 DELETE FROM core_banking.actuary_info
 WHERE id = $1;
+
+-- name: DeleteActuaryByEmployeeId :exec
+-- Removes the actuary_info record for the given employee_id.
+-- Idempotent: no error when no row matches (used by user-service on permission revocation).
+DELETE FROM core_banking.actuary_info
+WHERE employee_id = $1;
+
+-- name: ResetAllAgentsUsedLimit :exec
+-- Atomically resets used_limit to '0.00' for every AGENT actuary.
+-- Called by DailyLimitResetWorker at 23:59 each day.
+UPDATE core_banking.actuary_info
+SET used_limit  = '0.00',
+    updated_at  = NOW()
+WHERE actuary_type = 'AGENT';

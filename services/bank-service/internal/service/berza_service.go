@@ -29,49 +29,84 @@ func (s *berzaService) GetExchange(ctx context.Context, id int64, micCode string
 	return s.repo.GetByID(ctx, id)
 }
 
-// IsExchangeOpen proverava da li berza trenutno radi.
-// Radno vreme: 09:30–16:00 po lokalnom vremenu berze.
-// isAfterHours: true ako je prošlo manje od 4 sata od zatvaranja (16:00–20:00).
-// Ako je market:test_mode=true u Redisu, uvek vraća isOpen=true.
-func (s *berzaService) IsExchangeOpen(ctx context.Context, exchangeID int64) (isOpen bool, isAfterHours bool, err error) {
-	// 1. Proveri Redis override
-	testMode, err := s.modeStore.IsTestMode(ctx)
-	if err != nil {
-		return false, false, fmt.Errorf("IsTestMode: %w", err)
-	}
-	if testMode {
-		return true, false, nil
-	}
-
-	// 2. Učitaj berzu
+// IsExchangeOpen vraća MarketStatus za berzu sa datim ID-jem.
+// Pogledaj GetMarketStatus za detalje pravila.
+func (s *berzaService) IsExchangeOpen(ctx context.Context, exchangeID int64) (domain.MarketStatus, error) {
 	ex, err := s.repo.GetByID(ctx, exchangeID)
 	if err != nil {
-		return false, false, err
+		return domain.MarketStatusClosed, err
+	}
+	return s.GetMarketStatus(ctx, *ex)
+}
+
+// GetMarketStatus računata MarketStatus za već učitanu berzu.
+// Koristiti ovaj metod u listama da se izbegne N+1 (GetByID se ne poziva ponovo).
+//
+// Redosled provera:
+//  1. Redis test mode → uvek OPEN
+//  2. Lokalni datum berze (time.LoadLocation) → praznik → CLOSED
+//  3. Vikend (subota ili nedelja po lokalnom vremenu) → CLOSED
+//  4. Sat:min po lokalnom vremenu:
+//     07:00–ex.OpenTime  → PRE_MARKET
+//     ex.OpenTime–ex.CloseTime → OPEN  (vremena se čitaju iz baze)
+//     ex.CloseTime–20:00 → AFTER_HOURS
+//     ostalo             → CLOSED
+func (s *berzaService) GetMarketStatus(ctx context.Context, ex domain.Exchange) (domain.MarketStatus, error) {
+	// 1. Redis test mode bypass
+	testMode, err := s.modeStore.IsTestMode(ctx)
+	if err != nil {
+		return domain.MarketStatusClosed, fmt.Errorf("IsTestMode: %w", err)
+	}
+	if testMode {
+		return domain.MarketStatusOpen, nil
 	}
 
-	// 3. Konvertuj trenutno vreme u vremensku zonu berze
+	// 2. Konvertuj UTC u lokalno vreme berze
 	loc, err := time.LoadLocation(ex.Timezone)
 	if err != nil {
-		return false, false, fmt.Errorf("nevalidna vremenska zona %q: %w", ex.Timezone, err)
+		return domain.MarketStatusClosed, fmt.Errorf("nevalidna vremenska zona %q: %w", ex.Timezone, err)
 	}
-	now := time.Now().In(loc)
+	now := time.Now().UTC().In(loc)
 
-	// 4. Definiši granice radnog vremena za tekući dan
-	openTime  := time.Date(now.Year(), now.Month(), now.Day(), 9, 30, 0, 0, loc)
-	closeTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, loc)
-
-	// 5. Berza je otvorena ako je vreme između 09:30 i 16:00
-	if !now.Before(openTime) && now.Before(closeTime) {
-		return true, false, nil
+	// 3. Proveri praznike — koristimo samo datum (bez sata) za lookup
+	localDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	holiday, err := s.repo.IsHoliday(ctx, ex.Polity, localDate)
+	if err != nil {
+		// Ne blokiramo — logujemo tiho i nastavljamo
+		holiday = false
 	}
-
-	// 6. After-hours: od 16:00 do 20:00 (4 sata posle zatvaranja)
-	afterHoursEnd := closeTime.Add(4 * time.Hour)
-	if !now.Before(closeTime) && now.Before(afterHoursEnd) {
-		return false, true, nil
+	if holiday {
+		return domain.MarketStatusClosed, nil
 	}
 
-	return false, false, nil
+	// 4. Vikend
+	weekday := now.Weekday()
+	if weekday == time.Saturday || weekday == time.Sunday {
+		return domain.MarketStatusClosed, nil
+	}
+
+	// 5. Radno vreme po satu i minutima
+	// OpenTime i CloseTime dolaze iz baze (TIME kolona); koristimo samo sat i minut.
+	h, m := now.Hour(), now.Minute()
+	totalMin := h*60 + m
+
+	const (
+		preMarketStart = 7*60 + 0  // 07:00 — fiksno
+		afterHoursEnd  = 20*60 + 0 // 20:00 — fiksno
+	)
+	openStart := ex.OpenTime.UTC().Hour()*60 + ex.OpenTime.UTC().Minute()
+	closeEnd  := ex.CloseTime.UTC().Hour()*60 + ex.CloseTime.UTC().Minute()
+
+	switch {
+	case totalMin >= openStart && totalMin < closeEnd:
+		return domain.MarketStatusOpen, nil
+	case totalMin >= preMarketStart && totalMin < openStart:
+		return domain.MarketStatusPreMarket, nil
+	case totalMin >= closeEnd && totalMin < afterHoursEnd:
+		return domain.MarketStatusAfterHours, nil
+	default:
+		return domain.MarketStatusClosed, nil
+	}
 }
 
 func (s *berzaService) ToggleMarketTestMode(ctx context.Context, enabled bool) error {

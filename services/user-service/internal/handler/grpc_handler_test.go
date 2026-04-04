@@ -37,6 +37,7 @@ func newHandler(q *mocks.MockQuerier, pub *mocks.MockEmailPublisher) *handler.Us
 		pub,
 		&utils.NoOpUserCreatedPublisher{},
 		nil, // clientSvc — not needed by the existing tests
+		nil, // bankClient — disabled in unit tests
 	)
 }
 
@@ -51,6 +52,7 @@ func newHandlerWithClientSvc(clientSvc *mocks.MockClientService) *handler.UserHa
 		&mocks.MockEmailPublisher{},
 		&utils.NoOpUserCreatedPublisher{},
 		clientSvc,
+		nil, // bankClient — disabled in unit tests
 	)
 }
 

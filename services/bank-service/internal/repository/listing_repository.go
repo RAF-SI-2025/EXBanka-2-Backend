@@ -112,12 +112,15 @@ func (r *listingRepository) List(ctx context.Context, filter domain.ListingFilte
 	}
 
 	// Datum dospeća (settlement) u details_json — samo za FUTURE/OPTION; ostali tipovi uvek prolaze
+	// NAPOMENA: ne koristimo PostgreSQL jsonb ? 'key' operator ovde jer GORM
+	// interpretira '?' kao parameter placeholder, što kvari binding vrednosti.
+	// Koristimo jsonb_exists() funkciju koja je funkcionalno ekvivalentna.
 	if filter.SettlementFrom != "" {
 		q = q.Where(`
 			listing_type NOT IN ('FUTURE', 'OPTION')
 			OR (
 				details_json IS NOT NULL AND details_json != ''
-				AND details_json::jsonb ? 'settlement_date'
+				AND jsonb_exists(details_json::jsonb, 'settlement_date')
 				AND (details_json::jsonb->>'settlement_date')::date >= ?
 			)`, filter.SettlementFrom)
 	}
@@ -126,7 +129,7 @@ func (r *listingRepository) List(ctx context.Context, filter domain.ListingFilte
 			listing_type NOT IN ('FUTURE', 'OPTION')
 			OR (
 				details_json IS NOT NULL AND details_json != ''
-				AND details_json::jsonb ? 'settlement_date'
+				AND jsonb_exists(details_json::jsonb, 'settlement_date')
 				AND (details_json::jsonb->>'settlement_date')::date <= ?
 			)`, filter.SettlementTo)
 	}

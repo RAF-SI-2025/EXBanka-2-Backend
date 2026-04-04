@@ -35,6 +35,7 @@ func newTxHandler(q *mocks.MockQuerier, pub *mocks.MockEmailPublisher, db *sql.D
 		pub,
 		&utils.NoOpUserCreatedPublisher{},
 		nil, // clientSvc — not exercised by transaction tests
+		nil, // bankClient — disabled in unit tests
 	)
 }
 

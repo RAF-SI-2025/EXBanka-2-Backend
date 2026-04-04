@@ -142,3 +142,21 @@ func (r *actuaryRepository) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
+// ─── DeleteByEmployeeID ───────────────────────────────────────────────────────
+
+func (r *actuaryRepository) DeleteByEmployeeID(ctx context.Context, employeeID int64) error {
+	if err := r.q.DeleteActuaryByEmployeeId(ctx, employeeID); err != nil {
+		return fmt.Errorf("delete actuary employee_id %d: %w", employeeID, err)
+	}
+	return nil
+}
+
+// ─── ResetAllUsedLimits ───────────────────────────────────────────────────────
+
+func (r *actuaryRepository) ResetAllUsedLimits(ctx context.Context) error {
+	if err := r.q.ResetAllAgentsUsedLimit(ctx); err != nil {
+		return fmt.Errorf("reset all agents used_limit: %w", err)
+	}
+	return nil
+}
+

@@ -89,3 +89,28 @@ func (s *actuaryService) SetAgentNeedApproval(ctx context.Context, employeeID in
 		NeedApproval: needApproval,
 	})
 }
+
+// ─── Interne operacije ────────────────────────────────────────────────────────
+
+// CreateActuaryForEmployee kreira actuary_info zapis za zaposlenog koji je dobio SUPERVISOR/AGENT.
+// Supervizori se kreiraju sa nultim limitima i bez zahteva za odobrenje.
+func (s *actuaryService) CreateActuaryForEmployee(ctx context.Context, employeeID int64, actuaryType domain.ActuaryType) (*domain.Actuary, error) {
+	return s.repo.Create(ctx, domain.CreateActuaryInput{
+		EmployeeID:   employeeID,
+		ActuaryType:  actuaryType,
+		Limit:        decimal.Zero,
+		UsedLimit:    decimal.Zero,
+		NeedApproval: false,
+	})
+}
+
+// DeleteActuaryForEmployee briše actuary_info zapis za zaposlenog koji je izgubio SUPERVISOR/AGENT.
+func (s *actuaryService) DeleteActuaryForEmployee(ctx context.Context, employeeID int64) error {
+	return s.repo.DeleteByEmployeeID(ctx, employeeID)
+}
+
+// ResetAllAgentsUsedLimit atomski resetuje used_limit na 0 za sve agente.
+// Poziva se svake noći u 23:59 kroz DailyLimitResetWorker.
+func (s *actuaryService) ResetAllAgentsUsedLimit(ctx context.Context) error {
+	return s.repo.ResetAllUsedLimits(ctx)
+}

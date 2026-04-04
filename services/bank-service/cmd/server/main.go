@@ -168,6 +168,7 @@ func main() {
 	actuaryRepo := repository.NewActuaryRepository(sqlDB)
 	actuaryService := service.NewActuaryService(actuaryRepo)
 	actuaryHandler := handler.NewActuaryHandler(actuaryService)
+	internalActuaryHandler := handler.NewInternalActuaryHandler(actuaryService, cfg.JWTAccessSecret)
 
 	exchangeProvider := repository.NewExchangeRateProvider(cfg.ExchangeRateAPIKey, cfg.ExchangeRateAPIBaseURL)
 	exchangeTransferRepo := repository.NewExchangeTransferRepository(db)
@@ -176,6 +177,7 @@ func main() {
 	bankHandler := handler.NewBankHandler(currencyService, delatnostService, accountService, paymentService, kreditService, karticaService, berzaService, listingService, exchangeService, userClient, accountPublisher)
 
 	receiptHandler := handler.NewPaymentReceiptHandler(paymentService, cfg.JWTAccessSecret)
+	marketModeHTTPHandler := handler.NewMarketModeHTTPHandler(marketModeStore, cfg.JWTAccessSecret)
 	exchangeTransferHandler := handler.NewExchangeTransferHandler(paymentService, cfg.JWTAccessSecret)
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeService, cfg.JWTAccessSecret)
 	karticaRequestHandler := handler.NewKarticaRequestHandler(karticaService, userClient, cfg.JWTAccessSecret, accountPublisher)
@@ -236,7 +238,8 @@ func main() {
 
 	// Kombinovani HTTP mux: gRPC-Gateway + direktni HTTP handleri.
 	httpMux := http.NewServeMux()
-	httpMux.Handle("/bank/payments/", receiptHandler)                          // GET /bank/payments/{id}/receipt
+	httpMux.Handle("GET /bank/admin/exchanges/test-mode", marketModeHTTPHandler) // GET /bank/admin/exchanges/test-mode
+	httpMux.Handle("/bank/payments/", receiptHandler)                           // GET /bank/payments/{id}/receipt
 	httpMux.Handle("/bank/client/exchange-transfers", exchangeTransferHandler) // POST /bank/client/exchange-transfers
 	httpMux.Handle("/bank/exchange-rates", exchangeRateHandler)                // GET /bank/exchange-rates[?from=X&to=Y&amount=Z]
 	httpMux.Handle("/bank/exchange-rates/execute", exchangeRateHandler)        // POST /bank/exchange-rates/execute
@@ -244,6 +247,7 @@ func main() {
 	httpMux.Handle("POST /bank/cards/confirm", karticaRequestHandler)           // POST /bank/cards/confirm (Flow 2 Korak 2)
 	httpMux.Handle("GET /bank/cards/my", klientKarticeHandler)                  // GET  /bank/cards/my (klijentske kartice)
 	httpMux.Handle("PATCH /bank/cards/{id}/block", klientKarticeHandler)        // PATCH /bank/cards/{id}/block (blokiranje)
+	httpMux.Handle("/bank/internal/actuary/", internalActuaryHandler)           // POST/DELETE — user-service interni pozivi
 	httpMux.Handle("/", gwMux)                                                 // sve ostalo → gRPC-Gateway
 
 	gatewaySrv := &http.Server{
@@ -263,6 +267,10 @@ func main() {
 	listingRefreshInterval := time.Duration(cfg.ListingRefreshIntervalMinutes) * time.Minute
 	listingRefresherWorker := worker.NewListingRefresherWorker(listingRepo, listingRefreshInterval, cfg.FinnhubAPIKey, cfg.AlphaVantageAPIKey)
 	go listingRefresherWorker.Start(ctx)
+
+	// ── 7d. Start DailyLimitResetWorker (resetuje used_limit agenata u 23:59) ─
+	dailyLimitResetWorker := worker.NewDailyLimitResetWorker(actuaryService)
+	go dailyLimitResetWorker.Start(ctx)
 
 	// ── 7b. Start ActuaryConsumer (RabbitMQ event listener) ──────────────────
 	// Listens on the user_created queue and auto-provisions actuary profiles
