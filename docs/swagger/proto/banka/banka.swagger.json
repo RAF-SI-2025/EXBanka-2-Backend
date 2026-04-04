@@ -305,7 +305,7 @@
     },
     "/bank/admin/exchanges/test-mode": {
       "post": {
-        "summary": "ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje\nbypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).",
+        "summary": "ToggleMarketTestMode — Admin/Employee only. Uključuje ili isključuje\r\nbypass radnog vremena berzi (čuva se u Redisu pod ključem market:test_mode).",
         "operationId": "BankaService_ToggleMarketTestMode",
         "responses": {
           "200": {
@@ -934,7 +934,7 @@
     },
     "/bank/employee/accounts": {
       "get": {
-        "summary": "GetAllAccounts — Employee only. Vraća agregiranu listu svih računa klijenata,\nsortiranu abecedno po prezimenu vlasnika. Podržava filtere po broju računa,\nimenu i prezimenu vlasnika (prosleđuju se kao query parametri).",
+        "summary": "GetAllAccounts — Employee only. Vraća agregiranu listu svih računa klijenata,\r\nsortiranu abecedno po prezimenu vlasnika. Podržava filtere po broju računa,\r\nimenu i prezimenu vlasnika (prosleđuju se kao query parametri).",
         "operationId": "BankaService_GetAllAccounts",
         "responses": {
           "200": {
@@ -980,7 +980,7 @@
     },
     "/bank/employee/accounts/{brojRacuna}/cards": {
       "get": {
-        "summary": "GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.\nIme, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.",
+        "summary": "GetAccountCards — Employee only. Vraća sve kartice vezane za dati račun.\r\nIme, prezime i email vlasnika dohvataju se sinhronim pozivom ka user-service-u.",
         "operationId": "BankaService_GetAccountCards",
         "responses": {
           "200": {
@@ -1011,7 +1011,7 @@
     },
     "/bank/employee/cards/{cardNumber}/status": {
       "patch": {
-        "summary": "EmployeeChangeCardStatus — Employee only. Menja status kartice (blokada/deblokada/deaktivacija).\nNakon uspešne promene šalje asinhronu email notifikaciju vlasniku, a za poslovne račune\ni ovlašćenom licu (email se čita iz lokalne baze, bez dodatnog poziva ka user-service-u).",
+        "summary": "EmployeeChangeCardStatus — Employee only. Menja status kartice (blokada/deblokada/deaktivacija).\r\nNakon uspešne promene šalje asinhronu email notifikaciju vlasniku, a za poslovne račune\r\ni ovlašćenom licu (email se čita iz lokalne baze, bez dodatnog poziva ka user-service-u).",
         "operationId": "BankaService_EmployeeChangeCardStatus",
         "responses": {
           "200": {
@@ -1052,7 +1052,7 @@
     },
     "/bank/exchanges": {
       "get": {
-        "summary": "ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.\nFilteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).",
+        "summary": "ListExchanges — javna metoda. Vraća listu berzi sa opcionim filterima.\r\nFilteri: polity (tačno poklapanje), search (parcijalni match na name/acronym).",
         "operationId": "BankaService_ListExchanges",
         "responses": {
           "200": {
@@ -1091,7 +1091,7 @@
     },
     "/bank/exchanges/mic/{micCode}": {
       "get": {
-        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
+        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\r\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
         "operationId": "BankaService_GetExchange2",
         "responses": {
           "200": {
@@ -1131,7 +1131,7 @@
     },
     "/bank/exchanges/{id}": {
       "get": {
-        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
+        "summary": "GetExchange — javna metoda. Dohvata jednu berzu po ID-u ili MIC kodu.\r\nProsleđuje se ili id (path param) ili mic_code (query param) — ne oba.",
         "operationId": "BankaService_GetExchange",
         "responses": {
           "200": {
@@ -1395,7 +1395,7 @@
     },
     "/bank/transactions/pending": {
       "get": {
-        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
+        "summary": "GetPendingActions — Client only. Vraća pending akcije za mobilni.\r\nMORA biti registrovana POSLE GetPendingAction jer grpc-gateway v2 prepend-uje handlere\r\n(poslje registrovani imaju prioritet). Statička ruta /pending mora pobediti {id}.",
         "operationId": "BankaService_GetPendingActions",
         "responses": {
           "200": {
@@ -1504,7 +1504,7 @@
           "title": "\"AKTIVNA\" | \"BLOKIRANA\" | \"DEAKTIVIRANA\""
         }
       },
-      "description": "EmployeeChangeCardStatusRequest — promena statusa kartice od strane zaposlenog.\nDozvoljene akcije: AKTIVNA→BLOKIRANA, BLOKIRANA→AKTIVNA, */→DEAKTIVIRANA."
+      "description": "EmployeeChangeCardStatusRequest — promena statusa kartice od strane zaposlenog.\r\nDozvoljene akcije: AKTIVNA→BLOKIRANA, BLOKIRANA→AKTIVNA, */→DEAKTIVIRANA."
     },
     "BankaServiceRejectCreditBody": {
       "type": "object"
@@ -2177,7 +2177,7 @@
           "type": "string"
         }
       },
-      "description": "EmployeeAccountListItem je projekcija računa za zaposlene — sadrži podatke iz\nbank-service baze i ime/prezime vlasnika dohvaćeno sinhronim pozivom ka user-service-u."
+      "description": "EmployeeAccountListItem je projekcija računa za zaposlene — sadrži podatke iz\r\nbank-service baze i ime/prezime vlasnika dohvaćeno sinhronim pozivom ka user-service-u."
     },
     "v1EmployeeKarticaListItem": {
       "type": "object",
@@ -2203,7 +2203,7 @@
           "type": "string"
         }
       },
-      "description": "EmployeeKarticaListItem je projekcija kartice za portal zaposlenih.\nVlasnik je vlasnik računa (ne ovlašćeno lice), dohvaćen iz user-service-a."
+      "description": "EmployeeKarticaListItem je projekcija kartice za portal zaposlenih.\r\nVlasnik je vlasnik računa (ne ovlašćeno lice), dohvaćen iz user-service-a."
     },
     "v1Exchange": {
       "type": "object",
@@ -2236,6 +2236,14 @@
         "timezone": {
           "type": "string",
           "title": "IANA timezone, e.g. \"America/New_York\""
+        },
+        "currencyName": {
+          "type": "string",
+          "title": "naziv valute, e.g. \"Američki dolar\""
+        },
+        "marketStatus": {
+          "$ref": "#/definitions/v1MarketStatus",
+          "title": "trenutni status berze (računat u servisnom sloju)"
         }
       },
       "description": "Exchange predstavlja berzu hartija od vrednosti."
@@ -2619,6 +2627,18 @@
         }
       }
     },
+    "v1MarketStatus": {
+      "type": "string",
+      "enum": [
+        "MARKET_STATUS_UNSPECIFIED",
+        "OPEN",
+        "PRE_MARKET",
+        "AFTER_HOURS",
+        "CLOSED"
+      ],
+      "default": "MARKET_STATUS_UNSPECIFIED",
+      "description": "MarketStatus opisuje trenutni status berze.\r\nVrednosti se računaju u servisnom sloju na osnovu lokalnog vremena berze.\n\n - OPEN: 09:30–16:00 lokalno\n - PRE_MARKET: 07:00–09:30 lokalno\n - AFTER_HOURS: 16:00–20:00 lokalno\n - CLOSED: van radnog vremena ili praznik/vikend"
+    },
     "v1PaymentIntentItem": {
       "type": "object",
       "properties": {
@@ -2757,7 +2777,7 @@
           "title": "\"PENDING\""
         }
       },
-      "description": "PendingActionItem — projekcija za mobilni prikaz.\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
+      "description": "PendingActionItem — projekcija za mobilni prikaz.\r\nPolja su nazvana tako da odgovaraju postojećim DTO-ovima u mobilnoj aplikaciji."
     },
     "v1ToggleMarketTestModeRequest": {
       "type": "object",

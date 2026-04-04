@@ -503,15 +503,27 @@ message GetAccountCardsResponse {
 
 // ─── Berze (Exchanges) ───────────────────────────────────────────────────────
 
+// MarketStatus opisuje trenutni status berze.
+// Vrednosti se računaju u servisnom sloju na osnovu lokalnog vremena berze.
+enum MarketStatus {
+  MARKET_STATUS_UNSPECIFIED = 0;
+  OPEN                      = 1;  // 09:30–16:00 lokalno
+  PRE_MARKET                = 2;  // 07:00–09:30 lokalno
+  AFTER_HOURS               = 3;  // 16:00–20:00 lokalno
+  CLOSED                    = 4;  // van radnog vremena ili praznik/vikend
+}
+
 // Exchange predstavlja berzu hartija od vrednosti.
 message Exchange {
-  int64  id          = 1;
-  string name        = 2;    // naziv berze, e.g. "New York Stock Exchange"
-  string acronym     = 3;    // skraćenica, e.g. "NYSE"
-  string mic_code    = 4;    // ISO 10383 MIC kod, e.g. "XNYS"
-  string polity      = 5;    // država, e.g. "United States"
-  int64  currency_id = 6;    // FK na core_banking.valuta
-  string timezone    = 7;    // IANA timezone, e.g. "America/New_York"
+  int64        id            = 1;
+  string       name          = 2;    // naziv berze, e.g. "New York Stock Exchange"
+  string       acronym       = 3;    // skraćenica, e.g. "NYSE"
+  string       mic_code      = 4;    // ISO 10383 MIC kod, e.g. "XNYS"
+  string       polity        = 5;    // država, e.g. "United States"
+  int64        currency_id   = 6;    // FK na core_banking.valuta
+  string       timezone      = 7;    // IANA timezone, e.g. "America/New_York"
+  string       currency_name = 8;    // naziv valute, e.g. "Američki dolar"
+  MarketStatus market_status = 9;    // trenutni status berze (računat u servisnom sloju)
 }
 
 message ListExchangesRequest {

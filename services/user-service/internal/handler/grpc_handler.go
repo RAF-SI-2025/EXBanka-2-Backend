@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"log"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -41,6 +43,7 @@ type UserHandler struct {
 	publisher             utils.EmailPublisher        // abstracts RabbitMQ publishing for testability
 	userCreatedPublisher  utils.UserCreatedPublisher  // publishes employee-created events to bank-service
 	clientSvc             domain.ClientService        // use-case layer for client operations
+	bankClient            BankActuaryClient           // nil → bank-service sync disabled
 }
 
 // NewUserHandler constructs a UserHandler.
@@ -48,7 +51,8 @@ type UserHandler struct {
 // publisher handles async email event dispatch; inject utils.NewAMQPPublisher in production.
 // userCreatedPublisher notifies bank-service of new employees; inject utils.NewAMQPUserCreatedPublisher in production.
 // clientSvc handles client use-case logic; inject service.NewClientService in production.
-func NewUserHandler(q db.Querier, sqlDB *sql.DB, accessSecret, refreshSecret, activationSecret string, publisher utils.EmailPublisher, userCreatedPublisher utils.UserCreatedPublisher, clientSvc domain.ClientService) *UserHandler {
+// bankClient syncs actuary records; pass nil to disable (e.g. if BANK_SERVICE_ADDR is unset).
+func NewUserHandler(q db.Querier, sqlDB *sql.DB, accessSecret, refreshSecret, activationSecret string, publisher utils.EmailPublisher, userCreatedPublisher utils.UserCreatedPublisher, clientSvc domain.ClientService, bankClient BankActuaryClient) *UserHandler {
 	return &UserHandler{
 		querier:              q,
 		sqlDB:                sqlDB,
@@ -58,7 +62,22 @@ func NewUserHandler(q db.Querier, sqlDB *sql.DB, accessSecret, refreshSecret, ac
 		publisher:            publisher,
 		userCreatedPublisher: userCreatedPublisher,
 		clientSvc:            clientSvc,
+		bankClient:           bankClient,
 	}
+}
+
+// extractBearerToken reads the raw token string from gRPC incoming metadata.
+// Returns "" if the header is absent or malformed.
+func extractBearerToken(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ""
+	}
+	vals := md.Get("authorization")
+	if len(vals) == 0 {
+		return ""
+	}
+	return strings.TrimPrefix(vals[0], "Bearer ")
 }
 
 // ─── Health ───────────────────────────────────────────────────────────────────
@@ -267,16 +286,13 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 		return nil, status.Errorf(codes.PermissionDenied, "missing authentication claims")
 	}
 	isAdmin := claims.UserType == "ADMIN"
-	hasManageUsers := false
-	for _, p := range claims.Permissions {
-		if p == "MANAGE_USERS" {
-			hasManageUsers = true
-			break
-		}
-	}
+	hasManageUsers := slices.Contains(claims.Permissions, "MANAGE_USERS")
 	if !isAdmin && !hasManageUsers {
 		return nil, status.Errorf(codes.PermissionDenied, "only admins or users with MANAGE_USERS permission can update employees")
 	}
+
+	// Extract the raw Bearer token so we can forward it to bank-service later.
+	bearerToken := extractBearerToken(ctx)
 
 	// ── 2. Mandatory field validation ─────────────────────────────────────────
 	switch {
@@ -294,6 +310,19 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 		return nil, status.Errorf(codes.InvalidArgument, "phone number may only contain digits and an optional leading +")
 	}
 
+	// ── 2a. Detect admin-promotion sentinel ────────────────────────────────────
+	// The frontend signals "promote to ADMIN" by including ADMIN_PERMISSION in the
+	// permissions array. When detected: change user_type to ADMIN, assign all DB
+	// permissions + force SUPERVISOR, skip AGENT/SUPERVISOR mutex check.
+	makingAdmin := slices.Contains(req.Permissions, PermAdmin)
+
+	// ── 2b. AGENT ↔ SUPERVISOR mutual exclusivity (non-admin updates only) ────
+	hasSupervisorInReq := slices.Contains(req.Permissions, PermSupervisor)
+	hasAgentInReq      := slices.Contains(req.Permissions, PermAgent)
+	if !makingAdmin && hasSupervisorInReq && hasAgentInReq {
+		return nil, status.Errorf(codes.InvalidArgument, "zaposleni ne može imati istovremeno AGENT i SUPERVISOR permisiju")
+	}
+
 	// ── 3. Pre-fetch target (not found + admin guard) ─────────────────────────
 	existing, err := h.querier.GetEmployeeByID(ctx, req.Id)
 	if err != nil {
@@ -306,6 +335,28 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 		return nil, status.Errorf(codes.PermissionDenied, "admin accounts cannot be edited")
 	}
 
+	// ── 3a. Determine old actuary role (for change-detection) ─────────────────
+	oldPerms, err := h.querier.GetUserPermissions(ctx, req.Id)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to read existing permissions")
+	}
+	oldHasSupervisor := slices.Contains(oldPerms, PermSupervisor)
+	oldHasAgent      := slices.Contains(oldPerms, PermAgent)
+
+	// New effective actuary type after this update.
+	newActuaryType := ""
+	if makingAdmin || hasSupervisorInReq {
+		newActuaryType = "SUPERVISOR"
+	} else if hasAgentInReq {
+		newActuaryType = "AGENT"
+	}
+	oldActuaryType := ""
+	if oldHasSupervisor {
+		oldActuaryType = "SUPERVISOR"
+	} else if oldHasAgent {
+		oldActuaryType = "AGENT"
+	}
+
 	// ── 4. Begin transaction ──────────────────────────────────────────────────
 	tx, err := h.sqlDB.BeginTx(ctx, nil)
 	if err != nil {
@@ -315,7 +366,14 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 
 	qtx := db.New(tx)
 
-	// ── 5. UpdateUser ─────────────────────────────────────────────────────────
+	// ── 5a. Promote to ADMIN: update user_type ────────────────────────────────
+	if makingAdmin {
+		if _, err := tx.ExecContext(ctx, "UPDATE users SET user_type = 'ADMIN' WHERE id = $1", req.Id); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to set user_type to ADMIN")
+		}
+	}
+
+	// ── 5b. UpdateUser (base fields) ─────────────────────────────────────────
 	if err := qtx.UpdateUser(ctx, db.UpdateUserParams{
 		ID:          req.Id,
 		Email:       strings.TrimSpace(req.Email),
@@ -348,9 +406,26 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 	}
 
 	// ── 8. Re-assign permissions ──────────────────────────────────────────────
-	for _, code := range req.Permissions {
-		if strings.TrimSpace(code) == "" {
-			continue
+	// For admin promotion: fetch all permissions from DB and assign them all
+	// (including ADMIN_PERMISSION itself and SUPERVISOR).
+	// For regular update: use req.Permissions but skip the ADMIN_PERMISSION sentinel.
+	permsToAssign := req.Permissions
+	if makingAdmin {
+		allPerms, err := h.querier.GetAllPermissions(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to load permission codebook")
+		}
+		permsToAssign = make([]string, 0, len(allPerms)+1)
+		for _, p := range allPerms {
+			permsToAssign = append(permsToAssign, p.PermissionCode)
+		}
+		permsToAssign = appendIfMissing(permsToAssign, PermSupervisor)
+	}
+
+	for _, code := range permsToAssign {
+		code = strings.TrimSpace(code)
+		if code == "" || code == PermAdmin {
+			continue // skip the sentinel; ADMIN_PERMISSION is stored separately for real admins
 		}
 		if err := qtx.AssignUserPermission(ctx, db.AssignUserPermissionParams{
 			UserID:         req.Id,
@@ -360,7 +435,27 @@ func (h *UserHandler) UpdateEmployee(ctx context.Context, req *pb.UpdateEmployee
 		}
 	}
 
-	// ── 9. Commit ─────────────────────────────────────────────────────────────
+	// ── 9. Sync actuary record in bank-service (before commit for rollback) ───
+	// Determine whether we need to create, delete, or re-type the actuary record.
+	if h.bankClient != nil {
+		needDelete := oldActuaryType != "" && (newActuaryType == "" || newActuaryType != oldActuaryType)
+		needCreate := newActuaryType != "" && (oldActuaryType == "" || newActuaryType != oldActuaryType)
+
+		if needDelete {
+			if err := h.bankClient.DeleteActuary(ctx, req.Id, bearerToken); err != nil {
+				log.Printf("[UpdateEmployee] bank-service DeleteActuary employee_id=%d: %v", req.Id, err)
+				return nil, status.Errorf(codes.Internal, "failed to remove actuary record in bank-service: %v", err)
+			}
+		}
+		if needCreate {
+			if err := h.bankClient.CreateActuary(ctx, req.Id, newActuaryType, bearerToken); err != nil {
+				log.Printf("[UpdateEmployee] bank-service CreateActuary employee_id=%d type=%s: %v", req.Id, newActuaryType, err)
+				return nil, status.Errorf(codes.Internal, "failed to provision actuary record in bank-service: %v", err)
+			}
+		}
+	}
+
+	// ── 10. Commit ────────────────────────────────────────────────────────────
 	if err := tx.Commit(); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to commit transaction")
 	}

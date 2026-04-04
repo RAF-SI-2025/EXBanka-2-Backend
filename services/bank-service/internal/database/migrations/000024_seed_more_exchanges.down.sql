@@ -1,0 +1,16 @@
+DELETE FROM core_banking.exchange
+WHERE mic_code IN (
+    'XBBJ','XSFE','EDGD','CLST','WABR','MSEL','MTAH','ASTR','MEMX','NATX',
+    'ICXR','NEOE','PTPG','PFTS','CXAR','GLPS','XLME','XIMC','CGGD','XDRK',
+    'XCME','NEOC','UBSA','AAPA','BKLF','BMLB','FICX','ABNC','CMCI','XRFQ',
+    'AQXE','FXRS','BGFU','NBFL','JPBX','MPRL','XCNQ','SOHO','LCUR','PUMX',
+    'VAGM','MIHI','LISX','XGSX','TWSF','GTXS','FISU','XMEV','XEDA','EMBX',
+    'XBTR','XMGE','SVEX','XGDX','BSPL','CCXE','BNPS','TGSI','EXEU','LIQH',
+    'NYPC','GEMX','HRTF','SNUK','EIXE','HEMO','JSSI','SEDX','RICD','PKOP',
+    'XTND','GRSE','SISI','BCEE','MLRQ','WSIN','ABUL','LATG','XDMI','HRTX',
+    'REST','BILU','LIUS','BPSX','NDXS','MEMD','XSGA','EBXV','WFSE','BNPL',
+    'WIND'
+);
+
+DELETE FROM core_banking.valuta
+WHERE oznaka IN ('IDR','INR','PLN','UAH','ARS','TRY','SEK','HUF','BGN');

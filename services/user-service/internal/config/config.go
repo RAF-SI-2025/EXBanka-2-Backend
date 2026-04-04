@@ -29,6 +29,9 @@ type Config struct {
 
 	// Messaging
 	RabbitMQURL string
+
+	// Cross-service
+	BankServiceAddr string // e.g. "http://bank-service:8080"
 }
 
 // Load reads ENV vars and returns a populated Config.
@@ -57,6 +60,8 @@ func Load() (*Config, error) {
 		JWTActivationSecret: getEnv("JWT_ACTIVATION_SECRET", "change-me-activation-secret"),
 
 		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+
+		BankServiceAddr: getEnv("BANK_SERVICE_ADDR", ""),
 	}, nil
 }
 

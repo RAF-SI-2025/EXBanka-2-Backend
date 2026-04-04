@@ -26,6 +26,10 @@ type Querier interface {
 	// Removes the actuary_info record for the given PK.
 	// No-op (no error) when the id does not exist.
 	DeleteActuary(ctx context.Context, id int64) error
+	// Removes the actuary_info record for the given employee_id. Idempotent.
+	DeleteActuaryByEmployeeId(ctx context.Context, employeeID int64) error
+	// Atomically resets used_limit to '0.00' for every AGENT actuary.
+	ResetAllAgentsUsedLimit(ctx context.Context) error
 	// Returns the actuary_info row for a given employee_id.
 	// Used on every authenticated actuary request (JWT → employee_id lookup).
 	// Returns sql.ErrNoRows when the employee is not registered as an actuary.

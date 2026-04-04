@@ -86,6 +86,12 @@ type ActuaryRepository interface {
 
 	// Delete briše zapis aktuara po PK-u (idempotentno — ne vraća grešku ako ne postoji).
 	Delete(ctx context.Context, id int64) error
+
+	// DeleteByEmployeeID briše zapis aktuara po employee_id (idempotentno).
+	DeleteByEmployeeID(ctx context.Context, employeeID int64) error
+
+	// ResetAllUsedLimits atomski resetuje used_limit na '0.00' za sve agente (actuary_type = 'AGENT').
+	ResetAllUsedLimits(ctx context.Context) error
 }
 
 // ─── Service interfejs ────────────────────────────────────────────────────────
@@ -101,4 +107,12 @@ type ActuaryService interface {
 	SetAgentLimit(ctx context.Context, employeeID int64, limit decimal.Decimal) (*Actuary, error)
 	ResetAgentUsedLimit(ctx context.Context, employeeID int64) (*Actuary, error)
 	SetAgentNeedApproval(ctx context.Context, employeeID int64, needApproval bool) (*Actuary, error)
+
+	// Interne operacije (poziva user-service pri promeni permisija)
+	// CreateActuaryForEmployee kreira actuary_info zapis kad zaposleni dobije SUPERVISOR ili AGENT.
+	CreateActuaryForEmployee(ctx context.Context, employeeID int64, actuaryType ActuaryType) (*Actuary, error)
+	// DeleteActuaryForEmployee briše actuary_info zapis kad zaposleni izgubi SUPERVISOR ili AGENT.
+	DeleteActuaryForEmployee(ctx context.Context, employeeID int64) error
+	// ResetAllAgentsUsedLimit atomski resetuje used_limit na 0 za sve agente (poziva se u 23:59).
+	ResetAllAgentsUsedLimit(ctx context.Context) error
 }

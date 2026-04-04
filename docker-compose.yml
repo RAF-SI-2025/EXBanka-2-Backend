@@ -81,6 +81,7 @@ services:
       - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-change-me-access-secret}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-me-refresh-secret}
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - BANK_SERVICE_ADDR=http://bank-service:8080
     ports:
       - "8082:8080"   # host 8082 → container 8080
       - "50052:50051" # host 50052 → container 50051
