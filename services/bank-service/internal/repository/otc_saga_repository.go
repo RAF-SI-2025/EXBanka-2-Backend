@@ -173,6 +173,21 @@ func (r *otcSagaRepository) DeleteExecution(ctx context.Context, id int64) error
 	return nil
 }
 
+// ListInProgress vraća sve egzekucije sa statusom IN_PROGRESS (startup recovery).
+func (r *otcSagaRepository) ListInProgress(ctx context.Context) ([]domain.OTCSagaExecution, error) {
+	var models []otcSagaExecutionModel
+	if err := r.db.WithContext(ctx).
+		Where("status = ?", string(domain.OTCSagaStatusInProgress)).
+		Find(&models).Error; err != nil {
+		return nil, fmt.Errorf("list in-progress sagas: %w", err)
+	}
+	result := make([]domain.OTCSagaExecution, len(models))
+	for i, m := range models {
+		result[i] = m.toDomain()
+	}
+	return result, nil
+}
+
 // LogStep upisuje jedan red u otc_saga_step_log.
 func (r *otcSagaRepository) LogStep(ctx context.Context, executionID int64, step domain.OTCSagaStep, stepStatus domain.OTCSagaStepStatus, errMsg string, attempt int) error {
 	m := otcSagaStepLogModel{
