@@ -174,7 +174,12 @@ func (s *otcContractService) ExerciseContract(ctx context.Context, in domain.Exe
 	// ── Pokretanje SAGA u pozadini (ne blokiramo HTTP request) ───────────────
 	// Koristimo background context da SAGA ne bude prekinuta ako HTTP klijent
 	// zatvori konekciju pre nego što se završi.
-	go s.runSaga(context.Background(), exec, contract)
+	// Fault config (X-Saga-* headers) se propagira u background ctx za test mode.
+	sagaCtx := context.Background()
+	if fc := domain.FaultConfigFromCtx(ctx); fc != nil {
+		sagaCtx = domain.WithFaultConfig(sagaCtx, fc)
+	}
+	go s.runSaga(sagaCtx, exec, contract)
 
 	return exec, nil
 }
@@ -222,6 +227,12 @@ func (s *otcContractService) runSaga(ctx context.Context, exec *domain.OTCSagaEx
 
 // stepReserveFunds rezerviše totalCost na kupčevom računu (povećava rezervisana_sredstva).
 func (s *otcContractService) stepReserveFunds(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) error {
+	fc := domain.FaultConfigFromCtx(ctx)
+	if err := fc.CheckStepBefore("RESERVE_FUNDS"); err != nil {
+		return s.recordStep(ctx, exec, domain.OTCSagaStepReserveFunds, err)
+	}
+	fc.ApplyDelay("RESERVE_FUNDS")
+
 	txErr := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Provjera da kupac ima dovoljno raspoloživih sredstava.
 		var row struct {
@@ -249,11 +260,20 @@ func (s *otcContractService) stepReserveFunds(ctx context.Context, exec *domain.
 		`, exec.BuyerReservedAmount, c.BuyerAccountID).Error
 	})
 
+	if txErr == nil {
+		txErr = fc.CheckStepAfter("RESERVE_FUNDS")
+	}
 	return s.recordStep(ctx, exec, domain.OTCSagaStepReserveFunds, txErr)
 }
 
 // stepReserveSecurities smanjuje količinu u public_shares prodavca.
 func (s *otcContractService) stepReserveSecurities(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) error {
+	fc := domain.FaultConfigFromCtx(ctx)
+	if err := fc.CheckStepBefore("RESERVE_SECURITIES"); err != nil {
+		return s.recordStep(ctx, exec, domain.OTCSagaStepReserveSecurities, err)
+	}
+	fc.ApplyDelay("RESERVE_SECURITIES")
+
 	txErr := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Lock rows first (PostgreSQL forbids FOR UPDATE with aggregate functions).
 		var lockedIDs []int64
@@ -296,12 +316,21 @@ func (s *otcContractService) stepReserveSecurities(ctx context.Context, exec *do
 		return nil
 	})
 
+	if txErr == nil {
+		txErr = fc.CheckStepAfter("RESERVE_SECURITIES")
+	}
 	return s.recordStep(ctx, exec, domain.OTCSagaStepReserveSecurities, txErr)
 }
 
 // stepTransferFunds prenosi sredstva sa buyerAccount na sellerAccount.
 // Koristi isti debit/credit pattern kao PaymentService (audit transakcija).
 func (s *otcContractService) stepTransferFunds(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) error {
+	fc := domain.FaultConfigFromCtx(ctx)
+	if err := fc.CheckStepBefore("TRANSFER_FUNDS"); err != nil {
+		return s.recordStep(ctx, exec, domain.OTCSagaStepTransferFunds, err)
+	}
+	fc.ApplyDelay("TRANSFER_FUNDS")
+
 	now := time.Now().UTC()
 	desc := fmt.Sprintf("OTC izvršavanje ugovora #%d — prenos sredstava", c.ID)
 
@@ -339,6 +368,9 @@ func (s *otcContractService) stepTransferFunds(ctx context.Context, exec *domain
 		`, c.SellerAccountID, exec.BuyerReservedAmount, desc, now).Error
 	})
 
+	if txErr == nil {
+		txErr = fc.CheckStepAfter("TRANSFER_FUNDS")
+	}
 	return s.recordStep(ctx, exec, domain.OTCSagaStepTransferFunds, txErr)
 }
 
@@ -346,6 +378,12 @@ func (s *otcContractService) stepTransferFunds(ctx context.Context, exec *domain
 // Oba naloga su označena sa otc_saga_execution_id (migr. 000050) što omogućava
 // precizno brisanje u compensateTransferOwnership bez vremenskih heuristika.
 func (s *otcContractService) stepTransferOwnership(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) error {
+	fc := domain.FaultConfigFromCtx(ctx)
+	if err := fc.CheckStepBefore("TRANSFER_OWNERSHIP"); err != nil {
+		return s.recordStep(ctx, exec, domain.OTCSagaStepTransferOwnership, err)
+	}
+	fc.ApplyDelay("TRANSFER_OWNERSHIP")
+
 	now := time.Now().UTC()
 
 	txErr := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -376,6 +414,9 @@ func (s *otcContractService) stepTransferOwnership(ctx context.Context, exec *do
 		return nil
 	})
 
+	if txErr == nil {
+		txErr = fc.CheckStepAfter("TRANSFER_OWNERSHIP")
+	}
 	return s.recordStep(ctx, exec, domain.OTCSagaStepTransferOwnership, txErr)
 }
 
@@ -384,6 +425,13 @@ func (s *otcContractService) stepTransferOwnership(ctx context.Context, exec *do
 // Vraća grešku ako double-check ili DB transakcija ne uspeju — pozivalac
 // (runSaga) tada pokreće kompenzaciju od koraka TRANSFER_OWNERSHIP unazad.
 func (s *otcContractService) markCompleted(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) error {
+	fc := domain.FaultConfigFromCtx(ctx)
+	if err := fc.CheckStepBefore("COMPLETED"); err != nil {
+		_ = s.sagaRepo.LogStep(ctx, exec.ID, domain.OTCSagaStepCompleted, domain.OTCSagaStepStatusFailed, err.Error(), 1)
+		return err
+	}
+	fc.ApplyDelay("COMPLETED")
+
 	// ── Double-check: verifikuj da sintetički BUY nalog iz koraka 4 postoji ──
 	// Koristimo otc_saga_execution_id (dodat migracijom 000050) za egzaktno
 	// podudaranje — nema vremenskih heuristika, nema lažnih pozitiva.
@@ -398,10 +446,13 @@ func (s *otcContractService) markCompleted(ctx context.Context, exec *domain.OTC
 		  AND status     = 'DONE'
 		  AND is_done    = TRUE
 	`, exec.ID, c.BuyerID, c.ListingID).Scan(&syntheticCount).Error; err != nil {
+		_ = s.sagaRepo.LogStep(ctx, exec.ID, domain.OTCSagaStepCompleted, domain.OTCSagaStepStatusFailed, err.Error(), 1)
 		return fmt.Errorf("double-check query: %w", err)
 	}
 	if syntheticCount == 0 {
-		return fmt.Errorf("double-check: sintetički BUY nalog nije pronađen (exec_id=%d, contract_id=%d)", exec.ID, c.ID)
+		err := fmt.Errorf("double-check: sintetički BUY nalog nije pronađen (exec_id=%d, contract_id=%d)", exec.ID, c.ID)
+		_ = s.sagaRepo.LogStep(ctx, exec.ID, domain.OTCSagaStepCompleted, domain.OTCSagaStepStatusFailed, err.Error(), 1)
+		return err
 	}
 
 	// ── Finalizuj: atomično označi ugovor i SAGU kao završene ────────────────
@@ -415,6 +466,7 @@ func (s *otcContractService) markCompleted(ctx context.Context, exec *domain.OTC
 			"",
 		)
 	}); err != nil {
+		_ = s.sagaRepo.LogStep(ctx, exec.ID, domain.OTCSagaStepCompleted, domain.OTCSagaStepStatusFailed, err.Error(), 1)
 		return fmt.Errorf("finalizacija SAGA zapisa: %w", err)
 	}
 
@@ -438,12 +490,34 @@ func (s *otcContractService) compensateFrom(ctx context.Context, exec *domain.OT
 		fn   func() error
 	}
 
+	fc := domain.FaultConfigFromCtx(ctx)
+
 	// Redosled kompenzacija — od poslednjeg uspešnog ka prvom.
 	allSteps := []compensationFn{
-		{string(domain.OTCSagaStepTransferOwnership), func() error { return s.compensateTransferOwnership(ctx, exec, exec.ContractID) }},
-		{string(domain.OTCSagaStepTransferFunds), func() error { return s.compensateTransferFunds(ctx, exec) }},
-		{string(domain.OTCSagaStepReserveSecurities), func() error { return s.compensateReserveSecurities(ctx, exec, exec.ContractID) }},
-		{string(domain.OTCSagaStepReserveFunds), func() error { return s.compensateReserveFunds(ctx, exec) }},
+		{string(domain.OTCSagaStepTransferOwnership), func() error {
+			if err := fc.CheckCompensator(string(domain.OTCSagaStepTransferOwnership)); err != nil {
+				return err
+			}
+			return s.compensateTransferOwnership(ctx, exec, exec.ContractID)
+		}},
+		{string(domain.OTCSagaStepTransferFunds), func() error {
+			if err := fc.CheckCompensator(string(domain.OTCSagaStepTransferFunds)); err != nil {
+				return err
+			}
+			return s.compensateTransferFunds(ctx, exec)
+		}},
+		{string(domain.OTCSagaStepReserveSecurities), func() error {
+			if err := fc.CheckCompensator(string(domain.OTCSagaStepReserveSecurities)); err != nil {
+				return err
+			}
+			return s.compensateReserveSecurities(ctx, exec, exec.ContractID)
+		}},
+		{string(domain.OTCSagaStepReserveFunds), func() error {
+			if err := fc.CheckCompensator(string(domain.OTCSagaStepReserveFunds)); err != nil {
+				return err
+			}
+			return s.compensateReserveFunds(ctx, exec)
+		}},
 	}
 
 	// Pronađi indeks od kojeg trebamo da počnemo.
@@ -648,6 +722,84 @@ func (s *otcContractService) usdToTargetRate(ctx context.Context, targetCurrency
 		return 1.0
 	}
 	return usdRSD / targetRSD
+}
+
+// ─── Startup recovery ─────────────────────────────────────────────────────────
+
+// RecoverInProgressSagas pronalazi sve IN_PROGRESS SAGA egzekucije i nastavlja
+// ih od poslednjeg uspešnog koraka. Poziva se jednom pri startu servisa.
+func (s *otcContractService) RecoverInProgressSagas(ctx context.Context) {
+	execs, err := s.sagaRepo.ListInProgress(ctx)
+	if err != nil {
+		log.Printf("[SAGA] recovery: ne mogu učitati IN_PROGRESS egzekucije: %v", err)
+		return
+	}
+	if len(execs) == 0 {
+		return
+	}
+	log.Printf("[SAGA] recovery: pronađeno %d IN_PROGRESS egzekucija", len(execs))
+	for _, exec := range execs {
+		execCopy := exec
+		contract, err := s.contractRepo.GetContractByID(ctx, exec.ContractID)
+		if err != nil {
+			log.Printf("[SAGA] recovery: ne mogu učitati ugovor %d (exec %d): %v", exec.ContractID, exec.ID, err)
+			continue
+		}
+		log.Printf("[SAGA] recovery: nastavljam exec=%d contract=%d od koraka %s", exec.ID, exec.ContractID, exec.CurrentStep)
+		go s.runSagaResume(context.Background(), &execCopy, contract)
+	}
+}
+
+// runSagaResume nastavlja SAGA od poslednjeg uspešnog koraka (exec.CurrentStep).
+// Preskače korake koji su već završeni pre pada procesa.
+func (s *otcContractService) runSagaResume(ctx context.Context, exec *domain.OTCSagaExecution, c *domain.OTCContract) {
+	log.Printf("[SAGA] resume contract=%d exec=%d od koraka %s", c.ID, exec.ID, exec.CurrentStep)
+
+	stepOrder := map[domain.OTCSagaStep]int{
+		domain.OTCSagaStepPending:           0,
+		domain.OTCSagaStepReserveFunds:      1,
+		domain.OTCSagaStepReserveSecurities: 2,
+		domain.OTCSagaStepTransferFunds:     3,
+		domain.OTCSagaStepTransferOwnership: 4,
+		domain.OTCSagaStepCompleted:         5,
+	}
+	// done returns true if the given step was already completed before the crash.
+	// NOTE: exec.CurrentStep is updated in-place by recordStep, so this closure
+	// re-evaluates against the latest value each time it is called.
+	done := func(step domain.OTCSagaStep) bool {
+		return stepOrder[exec.CurrentStep] >= stepOrder[step]
+	}
+
+	if !done(domain.OTCSagaStepReserveFunds) {
+		if err := s.stepReserveFunds(ctx, exec, c); err != nil {
+			s.compensateFrom(ctx, exec, domain.OTCSagaStepPending, err)
+			return
+		}
+	}
+	if !done(domain.OTCSagaStepReserveSecurities) {
+		if err := s.stepReserveSecurities(ctx, exec, c); err != nil {
+			s.compensateFrom(ctx, exec, domain.OTCSagaStepReserveFunds, err)
+			return
+		}
+	}
+	if !done(domain.OTCSagaStepTransferFunds) {
+		if err := s.stepTransferFunds(ctx, exec, c); err != nil {
+			s.compensateFrom(ctx, exec, domain.OTCSagaStepReserveSecurities, err)
+			return
+		}
+	}
+	if !done(domain.OTCSagaStepTransferOwnership) {
+		if err := s.stepTransferOwnership(ctx, exec, c); err != nil {
+			s.compensateFrom(ctx, exec, domain.OTCSagaStepTransferFunds, err)
+			return
+		}
+	}
+	if !done(domain.OTCSagaStepCompleted) {
+		if err := s.markCompleted(ctx, exec, c); err != nil {
+			s.compensateFrom(ctx, exec, domain.OTCSagaStepTransferOwnership, err)
+			return
+		}
+	}
 }
 
 // ─── Provjera da implementira interface (compile-time guard) ──────────────────

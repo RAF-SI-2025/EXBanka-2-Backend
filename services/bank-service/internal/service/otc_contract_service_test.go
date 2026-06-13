@@ -103,6 +103,9 @@ func (m *mockSagaRepo) LogStep(ctx context.Context, executionID int64, step doma
 func (m *mockSagaRepo) DeleteExecution(ctx context.Context, id int64) error {
 	return m.Called(ctx, id).Error(0)
 }
+func (m *mockSagaRepo) ListInProgress(ctx context.Context) ([]domain.OTCSagaExecution, error) {
+	return nil, nil
+}
 func (m *mockSagaRepo) WithTx(tx interface{}) domain.OTCSagaRepository { return m }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -733,12 +736,15 @@ func TestMarkCompleted_OK(t *testing.T) {
 func TestMarkCompleted_SyntheticBuyNotFound(t *testing.T) {
 	ctx := context.Background()
 	db, dbMock := newGormDB(t)
-	svc := NewOTCContractService(db, &mockOTCRepo{}, &mockSagaRepo{}, &mockListingServiceIF{}, &mockExchangeServiceIF{}).(*otcContractService)
+	saga := &mockSagaRepo{}
+	svc := NewOTCContractService(db, &mockOTCRepo{}, saga, &mockListingServiceIF{}, &mockExchangeServiceIF{}).(*otcContractService)
 	exec := &domain.OTCSagaExecution{ID: 7, ContractID: 1}
 	c := &domain.OTCContract{ID: 1, BuyerID: 1, ListingID: 5}
 
 	dbMock.ExpectQuery("otc_saga_execution_id").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(int64(0))) // not found
+	saga.On("LogStep", ctx, int64(7), domain.OTCSagaStepCompleted, domain.OTCSagaStepStatusFailed,
+		mock.AnythingOfType("string"), 1).Return(nil)
 
 	err := svc.markCompleted(ctx, exec, c)
 	require.Error(t, err)

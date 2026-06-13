@@ -345,6 +345,7 @@ func main() {
 		exchangeService,
 	)
 	otcContractHandler := handler.NewOTCContractHandler(otcContractService, userClient, cfg.JWTAccessSecret)
+	go otcContractService.RecoverInProgressSagas(context.Background())
 
 	// ── Interbank (si-tx-proto) ──────────────────────────────────────────────
 	interbankRepo := repository.NewInterbankRepository(db)

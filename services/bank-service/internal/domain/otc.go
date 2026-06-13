@@ -380,6 +380,9 @@ type OTCSagaRepository interface {
 	// DeleteExecution briše SAGA egzekuciju po ID-u (koristi se za retry posle FAILED/COMPENSATION_FAILED).
 	DeleteExecution(ctx context.Context, id int64) error
 
+	// ListInProgress vraća sve egzekucije sa statusom IN_PROGRESS (za startup recovery).
+	ListInProgress(ctx context.Context) ([]OTCSagaExecution, error)
+
 	// WithTx vraća instancu koja radi nad datom *gorm.DB transakcijom.
 	WithTx(tx interface{}) OTCSagaRepository
 }
@@ -427,4 +430,8 @@ type OTCContractService interface {
 	// Samo kupac (BuyerID) može pozvati ovu metodu.
 	// Vraća sagaExecution.ID za praćenje; greška ako se SAGA ne može pokrenuti.
 	ExerciseContract(ctx context.Context, in ExerciseOTCContractInput) (*OTCSagaExecution, error)
+
+	// RecoverInProgressSagas nastavlja sve SAGA egzekucije koje su ostale u
+	// IN_PROGRESS statusu (npr. zbog pada procesa). Poziva se jednom pri startu.
+	RecoverInProgressSagas(ctx context.Context)
 }

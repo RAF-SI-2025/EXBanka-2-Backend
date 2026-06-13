@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -143,7 +144,13 @@ type executeResponse struct {
 }
 
 func (h *OTCContractHandler) handleExecute(w http.ResponseWriter, r *http.Request, id, callerID int64) {
-	exec, err := h.svc.ExerciseContract(r.Context(), domain.ExerciseOTCContractInput{
+	ctx := r.Context()
+	if os.Getenv("SAGA_TEST_MODE") == "true" {
+		if fc := parseXSagaHeaders(r); fc != nil {
+			ctx = domain.WithFaultConfig(ctx, fc)
+		}
+	}
+	exec, err := h.svc.ExerciseContract(ctx, domain.ExerciseOTCContractInput{
 		ContractID: id,
 		CallerID:   callerID,
 	})
@@ -283,6 +290,59 @@ func (h *OTCContractHandler) writeServiceError(w http.ResponseWriter, err error)
 	default:
 		writeJSONError(w, http.StatusInternalServerError, "interna greška")
 	}
+}
+
+// ─── Fault injection header parsing (SAGA_TEST_MODE only) ────────────────────
+
+// parseXSagaHeaders reads X-Saga-* headers and returns a SagaFaultConfig.
+// Returns nil if no relevant headers are present.
+func parseXSagaHeaders(r *http.Request) *domain.SagaFaultConfig {
+	stepName := func(code string) string {
+		switch strings.TrimSpace(code) {
+		case "F1":
+			return "RESERVE_FUNDS"
+		case "F2":
+			return "RESERVE_SECURITIES"
+		case "F3":
+			return "TRANSFER_FUNDS"
+		case "F4":
+			return "TRANSFER_OWNERSHIP"
+		case "F5":
+			return "COMPLETED"
+		case "C1":
+			return "RESERVE_FUNDS"
+		case "C2":
+			return "RESERVE_SECURITIES"
+		case "C3":
+			return "TRANSFER_FUNDS"
+		case "C4":
+			return "TRANSFER_OWNERSHIP"
+		default:
+			return code
+		}
+	}
+
+	cfg := domain.NewSagaFaultConfig()
+	cfg.ForceFailStep = stepName(r.Header.Get("X-Saga-Force-Fail"))
+	cfg.ForceFailKind = r.Header.Get("X-Saga-Force-Fail-Kind")
+	if cfg.ForceFailKind == "" {
+		cfg.ForceFailKind = "before"
+	}
+	cfg.CompFailStep = stepName(r.Header.Get("X-Saga-Compensate-Fail"))
+	if n, err := strconv.Atoi(r.Header.Get("X-Saga-Compensate-Fail-Times")); err == nil {
+		cfg.CompFailTimes = n
+	}
+	if raw := r.Header.Get("X-Saga-Inject-Delay"); raw != "" {
+		if parts := strings.SplitN(raw, ":", 2); len(parts) == 2 {
+			cfg.DelayStep = stepName(strings.TrimSpace(parts[0]))
+			ms := strings.TrimSuffix(strings.TrimSpace(parts[1]), "ms")
+			cfg.DelayMS, _ = strconv.Atoi(ms)
+		}
+	}
+	if cfg.ForceFailStep == "" && cfg.CompFailStep == "" && cfg.DelayStep == "" {
+		return nil
+	}
+	return cfg
 }
 
 // ─── JSON helpers (ponovo definisani jer su lokalni za package handler) ──────
