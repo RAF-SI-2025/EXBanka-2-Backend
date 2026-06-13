@@ -26,8 +26,8 @@ func TestSG08(t *testing.T) {
 
 	token := TokenFor(t, s.BuyerUserID, "CLIENT")
 	httpStatus, resp := Exercise(t, s.ContractID, token, map[string]string{
-		"X-Saga-Force-Fail":           "F3",
-		"X-Saga-Compensate-Fail":      "C2",
+		"X-Saga-Force-Fail":            "F3",
+		"X-Saga-Compensate-Fail":       "C2",
 		"X-Saga-Compensate-Fail-Times": "1",
 	})
 	require.Equal(t, http.StatusAccepted, httpStatus)

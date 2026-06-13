@@ -46,8 +46,13 @@ func TestSG10(t *testing.T) {
 	WaitForStatusStep(t, db, resp.SagaID, StatusInProgress, StepReserveSecurities, 15*time.Second)
 
 	// Pause bank-service: goroutine freezes inside time.Sleep(5s).
+	paused := true
 	Pause(t, SvcBankService)
-	t.Cleanup(func() { Unpause(t, SvcBankService) })
+	t.Cleanup(func() {
+		if paused {
+			Unpause(t, SvcBankService)
+		}
+	})
 
 	// Verify saga is frozen (status/step shouldn't change for 1s).
 	time.Sleep(1 * time.Second)
@@ -56,6 +61,7 @@ func TestSG10(t *testing.T) {
 	assert.Equal(t, StatusInProgress, execMid.Status, "saga should be frozen while paused")
 
 	// Unpause — goroutine resumes the sleep then F3 runs normally.
+	paused = false
 	Unpause(t, SvcBankService)
 
 	// SAGA should complete successfully after resume.

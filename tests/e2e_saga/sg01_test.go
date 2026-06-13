@@ -21,10 +21,10 @@ func TestSG01(t *testing.T) {
 
 	Truncate(t, db)
 	s := SeedReadyContract(t, db, SeedOpts{
-		BuyerBalance: 5000,
-		SellerQty:    10,
+		BuyerBalance:   5000,
+		SellerQty:      10,
 		ContractAmount: 10,
-		StrikePrice:  300,
+		StrikePrice:    300,
 	})
 
 	token := TokenFor(t, s.BuyerUserID, "CLIENT")

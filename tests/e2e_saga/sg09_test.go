@@ -32,8 +32,13 @@ func TestSG09a_ServicePausedBeforeRequest(t *testing.T) {
 	s := SeedReadyContract(t, db, SeedOpts{})
 	token := TokenFor(t, s.BuyerUserID, "CLIENT")
 
+	paused := true
 	Pause(t, SvcBankService)
-	t.Cleanup(func() { Unpause(t, SvcBankService) })
+	t.Cleanup(func() {
+		if paused {
+			Unpause(t, SvcBankService)
+		}
+	})
 
 	// Use 3s timeout — bank is frozen, so the request will hang.
 	client := &http.Client{Timeout: 3 * time.Second}
@@ -42,9 +47,9 @@ func TestSG09a_ServicePausedBeforeRequest(t *testing.T) {
 	// Service is paused — expect timeout or connection error.
 	require.Error(t, err, "paused service should cause request error/timeout")
 
-	// Unpause so cleanup can check DB properly.
+	// Unpause so DB checks below can observe any queued request processing.
+	paused = false
 	Unpause(t, SvcBankService)
-	t.Cleanup(func() {}) // already unpaused, no-op
 
 	// Give the service a moment to process any queued connection (if any).
 	time.Sleep(300 * time.Millisecond)

@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -13,7 +15,12 @@ import (
 // composeFile returns the path to the infra docker-compose.yml.
 // Override with E2E_COMPOSE env var.
 func composeFile() string {
-	return envOr("E2E_COMPOSE", "../EXBanka-2-Infrastructure/docker-compose.yml")
+	if v := os.Getenv("E2E_COMPOSE"); v != "" {
+		return v
+	}
+	// Resolve relative to this source file, not the working directory.
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "../../..", "EXBanka-2-Infrastructure", "docker-compose.yml")
 }
 
 // Pause runs `docker compose pause <svc>`.
